@@ -1,0 +1,58 @@
+Not Another Gamedev Framework Distributed Edition
+
+belief
+- GPL servers, BSD utils (e.g. close source games, but servers can be patched, new input or features added afterwards, new gfx api 20 years later)
+- out of band controls (e.g. nagf-evt-ctl enable print)
+- app and servers are completely free of language barrier (and communicate with ipc)
+
+IPC
+- must be readily available in most language (i.e. C, python, and maybe even java) and OS (Linux, and in future versions Windows)
+- multiple writers, one reader
+
+- non-blocking sends (e.g. cache this, fire this sound, show fps)
+ [mkfifo, named pipe, socketpair]
+  + language neutral, it's as easy as using a normal file
+  + should be easy to have something similar in windows
+  + multiple writers should be simple (unless message is longer than the pipe buffer size, read more to make sure you do it right]
+ 
+- blocking send/receive communication (e.g. get load progress)
+- blocking send (i.e. send with ack) (e.g. swap input back buffer before I use the data)
+ [shared memory and semaphores]
+  + it ain't language neutral but java could use jni, and python ctypes
+    java: jni shm_open/mmap and return newdirectbytearray
+    python: mmap.mmap but need to shm_open via ctypes, and if server the trunc part too
+ 
+evt
+- has double buffering (e.g. app sends a message to swap)
+- is responsible for all events (e.g. inputs, window)
+- other servers can listen to certain events (e.g. window resize)
+- ctl like request_resize, or fake_input, or shutdown
+- is the heart (i.e. creates the window)
+- handles the tick (which therefore could be sped up independantely of the game) TODO or should it be gfx?
+
+snd
+- handles loading formats (e.g. ogg, mp3, wav)
+- cache clips, fires thems (i.e. fx)
+- stream songs
+- ctl like zap from cache, list cache
+- support for procedural data
+
+gfx
+- handles loading image formats (e.g. png)
+- handles loading font formats
+- hides complexity of font rendering
+- draw image (scale, rotate, fill area while respecting aspect ratio)
+- ctl like show_fps, list cache, zap cache entry
+- current goal is to support 2D stuff. 3D would be a version 2 thing.
+- drives animations (to keep application as light as possible)
+
+dsk or mem
+- handles file i/o
+- handles complexity of parsing
+- potential for auto-save on mem change or time interval
+
+app
+- should benchmark true fps
+- should let evt run the tick
+- should let dsk/mem handle saves and whatnot
+

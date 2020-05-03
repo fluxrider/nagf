@@ -28,7 +28,7 @@ void main(void) {
   for(int i = 0; i < 4; i++) {
     // NOTE in this example, I lock the mutex before blocking in scanf. This is pretty horrid.
     //      also, in the event of a failure or Ctrl-C, the mutex is never unlocked.
-    pthread_mutex_lock(client_mutex);
+    if(pthread_mutex_lock(client_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
     scanf("%s", msg);
     if(sem_post(notify_server) == -1) { perror("sem_post"); exit(EXIT_FAILURE); }
     // wait for reply (in this example, wait up to 3 seconds)
@@ -37,7 +37,7 @@ void main(void) {
     timeout.tv_sec += 3;
     if(sem_timedwait(notify_client, &timeout) == -1) { perror("sem_timedwait"); exit(EXIT_FAILURE); }
     printf("Message received %d\n", msg[0]);
-    pthread_mutex_unlock(client_mutex);
+    if(pthread_mutex_unlock(client_mutex)) { fprintf(stderr, "pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
   }
   
   // disconnect from message manager

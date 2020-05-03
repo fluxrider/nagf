@@ -16,9 +16,9 @@ void main(void) {
   // connect to message manager
   size_t length = 1024;
   const char * name = "/prototype-server";
-  int fd = shm_open(name, O_RDWR, 0); if(fd == -1) { perror("shm_open"); exit(1); }
-  void * ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0); if(ptr == MAP_FAILED) { perror("mmap"); exit(1); }
-  if(close(fd) == -1) { perror("close"); exit(1); }
+  int fd = shm_open(name, O_RDWR, 0); if(fd == -1) { perror("shm_open"); exit(EXIT_FAILURE); }
+  void * ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0); if(ptr == MAP_FAILED) { perror("mmap"); exit(EXIT_FAILURE); }
+  if(close(fd) == -1) { perror("close"); exit(EXIT_FAILURE); }
   sem_t * notify_server = ptr;
   sem_t * notify_client = notify_server + 1;
   pthread_mutex_t * client_mutex = (pthread_mutex_t *) (notify_client + 1);
@@ -41,5 +41,5 @@ void main(void) {
   }
   
   // disconnect from message manager
-  if(munmap(ptr, length) == -1) { perror("munmap"); exit(1); }
+  if(munmap(ptr, length) == -1) { perror("munmap"); exit(EXIT_FAILURE); }
 }

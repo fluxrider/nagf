@@ -57,6 +57,7 @@ JNIEXPORT jobject JNICALL Java_client_msgmgr_1get_1mem(JNIEnv * env, jclass _cla
 JNIEXPORT jstring JNICALL Java_client_msgmgr_1disconnect(JNIEnv * env, jclass _class, jobject msgmgr) {
   struct opaque_data * data = (*env)->GetDirectBufferAddress(env, msgmgr);
   if(munmap(data->ptr, data->length) == -1) return (*env)->NewStringUTF(env, strerror(errno));
+  free(data);
   return NULL;
 }
 

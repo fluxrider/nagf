@@ -36,6 +36,9 @@ snd
 - stream songs
 - ctl like zap from cache, list cache
 - support for procedural data
+- volume is always combo of two parameters (cubic and linear), I detest the one slider paradigm (normalized [0-1] of course)
+- status debug spew request (e.g. show currently playing bg song, position, duration, volumes)
+- stack of bg song, which takes care of pause/resume. This makes it unecessary for the client to query the position of the song.
 
 gfx
 - handles loading image formats (e.g. png)

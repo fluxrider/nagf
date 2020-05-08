@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 
+# A simple gstreamer-based implementation of a sound server.
+# - blindly uses a high-level 'playbin' for the bg song.
+# - blindly uses multiple high-level 'playbin' for sound clips.
+# - fail fast
+
 import os
 import gi
 import sys
@@ -13,51 +18,46 @@ gi.require_version('GstAudio', '1.0')
 from gi.repository import Gst, GstAudio
 
 Gst.init(None)
-player = Gst.ElementFactory.make("playbin", "player")
 
-# streamed song utils (e.g. bg song)
-def gst_start(path):
-  gst_stop()
-  player.set_property("uri", path)
-  player.set_state(Gst.State.PLAYING)
+# background song (i.e. only one plays at a time)
 
-def gst_toggle_pause():
-  reply = player.get_state(Gst.CLOCK_TIME_NONE)
-  if reply[0]:
-    if reply[1] == Gst.State.PLAYING:
-      player.set_state(Gst.State.PAUSED)
-    elif reply[1] == Gst.State.PAUSED:
-      player.set_state(Gst.State.PLAYING)
+bg = Gst.ElementFactory.make("playbin", "player")
 
-def gst_stop():
-  player.set_state(Gst.State.NULL)
+def bg_start(path):
+  bg_stop()
+  bg.set_property("uri", path)
+  bg.set_state(Gst.State.PLAYING)
 
-def gst_seek(ns):
-  player.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, ns)
+def bg_stop():
+  bg.set_state(Gst.State.NULL)
 
-# volume is always combo of two parameters (cubic and linear), I detest the one slider paradigm
-def gst_set_volume(cubic, linear):
-  player.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
+def bg_seek(ns):
+  bg.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, ns)
 
-# TODO status debug spew request (e.g. show currently playing bg song, position, duration, volumes)
-#player.query_duration(Gst.Format.TIME)
-#reply[1] / Gst.SECOND
-
-# TODO stack of bg song, which takes care of resume
-
-# TODO non-stream audio clip
-
-# TODO procedural sound clip
+def bg_set_volume(cubic, linear):
+  bg.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
 
 # listen to gstreamer events
-def handle_message_loop():
-  bus = player.get_bus()
-  while True:
-    msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS | Gst.MessageType.ERROR)
-    if msg.type == Gst.MessageType.ERROR:
-      print(f'snd-gstreamer ERROR {msg.parse_error()}')
-    elif msg.type == Gst.MessageType.EOS:
-      print('snd-gstreamer EOS')
+error = None
+def handle_message_loop(player):
+  global error
+  try:
+    bus = player.get_bus()
+    while True:
+      msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS | Gst.MessageType.ERROR)
+      # fail fast on error
+      if msg.type == Gst.MessageType.ERROR:
+        print(f'snd-gstreamer ERROR {msg.parse_error()}')
+        error = True
+        break
+      # loop background song
+      elif msg.type == Gst.MessageType.EOS:
+        if player == bg:
+          bg_seek(0)
+        else:
+          break
+  except Exception as e:
+    error = e
 
 # listen to client messages (from the FIFO)
 server_fifo_path = 'snd-gstream.fifo'
@@ -74,27 +74,30 @@ def handle_fifo_loop():
           return
         # cmd: stream <path>
         if line.startswith('stream '):
-          gst_start(f'file://{os.path.abspath(line[7:])}')
+          key = line[7:]
+          #threading.Thread(target=handle_message_loop, args=(players[key],key,), daemon=True).start()
+          #gst_start(players[key], f'file://{os.path.abspath(line[7:])}')
+          bg_start(f'file://{os.path.abspath(line[7:])}')
         # cmd: stop (the stream)
         elif line == 'stop':
-          gst_stop()
-        # cmd: volume <cubic> <linear> (normalized [0-1] of course)
+          bg_stop()
+        # cmd: volume <cubic> <linear>
         elif line.startswith('volume '):
           parts = line.split()
-          gst_set_volume(float(parts[1]), float(parts[2]))
+          bg_set_volume(float(parts[-2]), float(parts[-1]))
         else:
           print(f'snd-gstreamer CMD ERROR {line}')
 
 # start listening
+bg_set_volume(1, 1)
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
-handle_message_loop_thread = threading.Thread(target=handle_message_loop, daemon=True)
-handle_message_loop_thread.start()
+threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()
 
 try:
-  # TODO I want to move on as soon as one of my thread exits. I have not found a way to do this without an ugly delay.
-  while handle_fifo_loop_thread.is_alive() and handle_message_loop_thread.is_alive():
+  # TODO find a way to do this check without an ugly delay (and intense checks)
+  while handle_fifo_loop_thread.is_alive() and not error:
     time.sleep(2)
 finally:
   with contextlib.suppress(FileNotFoundError): os.remove(server_fifo_path)
-
+  print(f'{str(error)}')

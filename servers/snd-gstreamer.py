@@ -20,10 +20,11 @@ from gi.repository import Gst, GstAudio
 Gst.init(None)
 
 def set_volume(player, cubic, linear):
-  player.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
+  player.set_property('volume', linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
 
 # background song (i.e. only one plays at a time)
-bg = Gst.ElementFactory.make("playbin", "player")
+bg = Gst.ElementFactory.make('playbin')
+# TODO may want to: fakesink = Gst.ElementFactory.make("fakesink"); self.player.set_property("video-sink", fakesink)
 
 # listen to gstreamer events
 error = None
@@ -65,7 +66,7 @@ def handle_fifo_loop():
         if line.startswith('stream '):
           key = line[7:]
           bg.set_state(Gst.State.NULL)
-          bg.set_property("uri", f'file://{os.path.abspath(line[7:])}')
+          bg.set_property('uri', f'file://{os.path.abspath(line[7:])}')
           bg.set_state(Gst.State.PLAYING)
         # cmd: stop (the stream)
         elif line == 'stop':
@@ -87,14 +88,39 @@ def handle_fifo_loop():
           parts = line.split()
           cubic = float(parts[-2])
           linear = float(parts[-1])
-          path = " ".join(parts[1:-2])
-          p = Gst.ElementFactory.make("playbin", "player")
-          p.set_property("uri", f'file://{os.path.abspath(path)}')
+          path = ' '.join(parts[1:-2])
+          p = Gst.ElementFactory.make('playbin')
+          p.set_property('uri', f'file://{os.path.abspath(path)}')
           set_volume(p, cubic, linear)
           p.set_state(Gst.State.PLAYING)
           threading.Thread(target=handle_message_loop, args=(p,), daemon=True).start()
         else:
           print(f'snd-gstreamer CMD ERROR {line}')
+
+# procedural audio
+source = Gst.ElementFactory.make("filesrc")
+raw = Gst.ElementFactory.make('rawaudioparse')
+raw.set_property('format', 'pcm')
+raw.set_property('pcm-format', 's8')
+raw.set_property('sample-rate', 8000)
+raw.set_property('num-channels', 1)
+raw.set_property('use-sink-caps', False)
+convert = Gst.ElementFactory.make("audioconvert")
+resample = Gst.ElementFactory.make("audioresample")
+sink = Gst.ElementFactory.make("autoaudiosink")
+pipe = Gst.Pipeline.new()
+pipe.add(source)
+pipe.add(raw)
+pipe.add(convert)
+pipe.add(resample)
+pipe.add(sink)
+source.link(raw)
+raw.link(convert)
+convert.link(resample)
+resample.link(sink)
+source.set_property("location", '/home/flux/_/dev/nagf/tmp/out_long.raw')
+pipe.set_state(Gst.State.PLAYING)
+threading.Thread(target=handle_message_loop, args=(pipe,), daemon=True).start()
 
 # start listening
 set_volume(bg, 1, 1)

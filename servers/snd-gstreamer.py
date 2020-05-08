@@ -15,6 +15,7 @@ from gi.repository import Gst, GstAudio
 Gst.init(None)
 player = Gst.ElementFactory.make("playbin", "player")
 
+# streamed song utils (e.g. bg song)
 def gst_start(path):
   gst_stop()
   player.set_property("uri", path)
@@ -46,35 +47,19 @@ def gst_set_volume(cubic, linear):
 
 # TODO non-stream audio clip
 
-
-#def on_gst_bus_message(bus, message):
-#  print(message)
-#  if message.type == Gst.MessageType.EOS:
-#    # TODO auto loop for bg
-#    print("EOF")
-#    pass
-#  elif message.type == Gst.MessageType.ERROR:
-#    print(f"snd-gstreamer ERROR {message.parse_error()}")
-#bus = player.get_bus()
-#bus.add_signal_watch()
-#bus.connect("message", on_gst_bus_message)
-# TODO gst_bus_peek () and/or gst_bus_poll
+# TODO procedural sound clip
 
 # listen to gstreamer events
 def handle_message_loop():
   bus = player.get_bus()
-  bus.add_signal_watch()
   while True:
-    msg = bus.timed_pop_filtered(2000000000, Gst.MessageType.EOS | Gst.MessageType.ERROR)
-    if msg:
-      if msg.type == Gst.MessageType.EOS:
-        print('snd-gstreamer EOS')
-      elif msg.type == Gst.MessageType.ERROR:
-        print(f'snd-gstreamer ERROR {msg.parse_error()}')
-handle_message_loop_thread = threading.Thread(target=handle_message_loop, daemon=True)
-handle_message_loop_thread.start()
+    msg = bus.timed_pop_filtered(Gst.CLOCK_TIME_NONE, Gst.MessageType.EOS | Gst.MessageType.ERROR)
+    if msg.type == Gst.MessageType.ERROR:
+      print(f'snd-gstreamer ERROR {msg.parse_error()}')
+    elif msg.type == Gst.MessageType.EOS:
+      print('snd-gstreamer EOS')
 
-# listen to client messages
+# listen to client messages (from the FIFO)
 server_fifo_path = 'snd-gstream.fifo'
 def handle_fifo_loop():
   with contextlib.suppress(FileNotFoundError): os.remove(server_fifo_path)
@@ -99,12 +84,17 @@ def handle_fifo_loop():
           gst_set_volume(float(parts[1]), float(parts[2]))
         else:
           print(f'snd-gstreamer CMD ERROR {line}')
+
+# start listening
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
+handle_message_loop_thread = threading.Thread(target=handle_message_loop, daemon=True)
+handle_message_loop_thread.start()
 
 try:
+  # TODO I want to move on as soon as one of my thread exits. I have not found a way to do this without an ugly delay.
   while handle_fifo_loop_thread.is_alive() and handle_message_loop_thread.is_alive():
     time.sleep(2)
 finally:
-  os.remove(server_fifo_path)
+  with contextlib.suppress(FileNotFoundError): os.remove(server_fifo_path)
 

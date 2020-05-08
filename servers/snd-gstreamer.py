@@ -19,23 +19,11 @@ from gi.repository import Gst, GstAudio
 
 Gst.init(None)
 
+def set_volume(player, cubic, linear):
+  player.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
+
 # background song (i.e. only one plays at a time)
-
 bg = Gst.ElementFactory.make("playbin", "player")
-
-def bg_start(path):
-  bg_stop()
-  bg.set_property("uri", path)
-  bg.set_state(Gst.State.PLAYING)
-
-def bg_stop():
-  bg.set_state(Gst.State.NULL)
-
-def bg_seek(ns):
-  bg.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, ns)
-
-def bg_set_volume(cubic, linear):
-  bg.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
 
 # listen to gstreamer events
 error = None
@@ -53,7 +41,7 @@ def handle_message_loop(player):
       # loop background song
       elif msg.type == Gst.MessageType.EOS:
         if player == bg:
-          bg_seek(0)
+          bg.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT, 0)
         else:
           player.set_state(Gst.State.NULL)
           break
@@ -76,14 +64,16 @@ def handle_fifo_loop():
         # cmd: stream <path>
         if line.startswith('stream '):
           key = line[7:]
-          bg_start(f'file://{os.path.abspath(line[7:])}')
+          bg.set_state(Gst.State.NULL)
+          bg.set_property("uri", f'file://{os.path.abspath(line[7:])}')
+          bg.set_state(Gst.State.PLAYING)
         # cmd: stop (the stream)
         elif line == 'stop':
-          bg_stop()
+          bg.set_state(Gst.State.NULL)
         # cmd: volume <cubic> <linear>
         elif line.startswith('volume '):
           parts = line.split()
-          bg_set_volume(float(parts[-2]), float(parts[-1]))
+          set_volume(bg, float(parts[-2]), float(parts[-1]))
         # cmd: cache <path>
         elif line.startswith('cache '):
           # ignore TODO still track coherence of cache/fire/zap
@@ -99,15 +89,15 @@ def handle_fifo_loop():
           linear = float(parts[-1])
           path = " ".join(parts[1:-2])
           p = Gst.ElementFactory.make("playbin", "player")
-          p.set_property("uri", 'file://' + os.path.abspath(path))
-          p.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
+          p.set_property("uri", f'file://{os.path.abspath(path)}')
+          set_volume(p, cubic, linear)
           p.set_state(Gst.State.PLAYING)
           threading.Thread(target=handle_message_loop, args=(p,), daemon=True).start()
         else:
           print(f'snd-gstreamer CMD ERROR {line}')
 
 # start listening
-bg_set_volume(1, 1)
+set_volume(bg, 1, 1)
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
 threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()

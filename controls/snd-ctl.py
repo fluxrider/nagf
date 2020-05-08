@@ -7,6 +7,7 @@ import sys
 import stat
 import time
 
+# NOTE aside from this check, you might as well just echo '' >> .fifo, but then again if [ -p "$pipe" ]
 server_fifo_path = sys.argv[1]
 if not stat.S_ISFIFO(os.stat(server_fifo_path).st_mode): raise Exception("not a fifo")
 

@@ -19,8 +19,8 @@ from gi.repository import Gst, GstAudio
 
 Gst.init(None)
 
-def set_volume(player, cubic, linear):
-  player.set_property('volume', linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
+def combine_volume(cubic, linear):
+  return linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic)
 
 # background song (i.e. only one plays at a time)
 bg = Gst.ElementFactory.make('playbin')
@@ -38,6 +38,7 @@ def handle_message_loop(player):
       if msg.type == Gst.MessageType.ERROR:
         print(f'snd-gstreamer ERROR {msg.parse_error()}')
         error = True
+        player.set_state(Gst.State.NULL)
         break
       # loop background song
       elif msg.type == Gst.MessageType.EOS:
@@ -64,7 +65,6 @@ def handle_fifo_loop():
           return
         # cmd: stream <path>
         if line.startswith('stream '):
-          key = line[7:]
           bg.set_state(Gst.State.NULL)
           bg.set_property('uri', f'file://{os.path.abspath(line[7:])}')
           bg.set_state(Gst.State.PLAYING)
@@ -74,7 +74,7 @@ def handle_fifo_loop():
         # cmd: volume <cubic> <linear>
         elif line.startswith('volume '):
           parts = line.split()
-          set_volume(bg, float(parts[-2]), float(parts[-1]))
+          bg.set_property('volume', combine_volume(float(parts[-2]), float(parts[-1])))
         # cmd: cache <path>
         elif line.startswith('cache '):
           # ignore TODO still track coherence of cache/fire/zap
@@ -91,39 +91,47 @@ def handle_fifo_loop():
           path = ' '.join(parts[1:-2])
           p = Gst.ElementFactory.make('playbin')
           p.set_property('uri', f'file://{os.path.abspath(path)}')
-          set_volume(p, cubic, linear)
+          p.set_property('volume', combine_volume(cubic, linear))
           p.set_state(Gst.State.PLAYING)
           threading.Thread(target=handle_message_loop, args=(p,), daemon=True).start()
+        # cmd: raw <fifo-path>
+        elif line.startswith('raw '):
+          parts = line.split()
+          cubic = float(parts[-2])
+          linear = float(parts[-1])
+          path = ' '.join(parts[1:-2])
+          source = Gst.ElementFactory.make("filesrc")
+          raw = Gst.ElementFactory.make('rawaudioparse')
+          raw.set_property('format', 'pcm')
+          raw.set_property('pcm-format', 's8')
+          raw.set_property('sample-rate', 8000)
+          raw.set_property('num-channels', 1)
+          raw.set_property('use-sink-caps', False)
+          convert = Gst.ElementFactory.make("audioconvert")
+          resample = Gst.ElementFactory.make("audioresample")
+          volume = Gst.ElementFactory.make("volume")
+          sink = Gst.ElementFactory.make("autoaudiosink")
+          pipe = Gst.Pipeline.new()
+          pipe.add(source)
+          pipe.add(raw)
+          pipe.add(convert)
+          pipe.add(resample)
+          pipe.add(volume)
+          pipe.add(sink)
+          source.link(raw)
+          raw.link(convert)
+          convert.link(resample)
+          resample.link(volume)
+          volume.link(sink)
+          source.set_property("location", os.path.abspath(path))
+          volume.set_property('volume', combine_volume(cubic, linear))
+          pipe.set_state(Gst.State.PLAYING)
+          threading.Thread(target=handle_message_loop, args=(pipe,), daemon=True).start()
         else:
           print(f'snd-gstreamer CMD ERROR {line}')
 
-# procedural audio
-source = Gst.ElementFactory.make("filesrc")
-raw = Gst.ElementFactory.make('rawaudioparse')
-raw.set_property('format', 'pcm')
-raw.set_property('pcm-format', 's8')
-raw.set_property('sample-rate', 8000)
-raw.set_property('num-channels', 1)
-raw.set_property('use-sink-caps', False)
-convert = Gst.ElementFactory.make("audioconvert")
-resample = Gst.ElementFactory.make("audioresample")
-sink = Gst.ElementFactory.make("autoaudiosink")
-pipe = Gst.Pipeline.new()
-pipe.add(source)
-pipe.add(raw)
-pipe.add(convert)
-pipe.add(resample)
-pipe.add(sink)
-source.link(raw)
-raw.link(convert)
-convert.link(resample)
-resample.link(sink)
-source.set_property("location", '/home/flux/_/dev/nagf/tmp/out_long.raw')
-pipe.set_state(Gst.State.PLAYING)
-threading.Thread(target=handle_message_loop, args=(pipe,), daemon=True).start()
-
 # start listening
-set_volume(bg, 1, 1)
+bg.set_property('volume', combine_volume(1, 1))
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
 threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()

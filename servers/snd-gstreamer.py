@@ -55,6 +55,7 @@ def handle_message_loop(player):
         if player == bg:
           bg_seek(0)
         else:
+          player.set_state(Gst.State.NULL)
           break
   except Exception as e:
     error = e
@@ -75,8 +76,6 @@ def handle_fifo_loop():
         # cmd: stream <path>
         if line.startswith('stream '):
           key = line[7:]
-          #threading.Thread(target=handle_message_loop, args=(players[key],key,), daemon=True).start()
-          #gst_start(players[key], f'file://{os.path.abspath(line[7:])}')
           bg_start(f'file://{os.path.abspath(line[7:])}')
         # cmd: stop (the stream)
         elif line == 'stop':
@@ -85,6 +84,25 @@ def handle_fifo_loop():
         elif line.startswith('volume '):
           parts = line.split()
           bg_set_volume(float(parts[-2]), float(parts[-1]))
+        # cmd: cache <path>
+        elif line.startswith('cache '):
+          # ignore TODO still track coherence of cache/fire/zap
+          pass
+        # cmd: zap <path>
+        elif line.startswith('zap '):
+          # ignore
+          pass
+        # cmd: fire <path> <volume_cubic> <volume_linear>
+        elif line.startswith('fire '):
+          parts = line.split()
+          cubic = float(parts[-2])
+          linear = float(parts[-1])
+          path = " ".join(parts[1:-2])
+          p = Gst.ElementFactory.make("playbin", "player")
+          p.set_property("uri", 'file://' + os.path.abspath(path))
+          p.set_property("volume", linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic))
+          p.set_state(Gst.State.PLAYING)
+          threading.Thread(target=handle_message_loop, args=(p,), daemon=True).start()
         else:
           print(f'snd-gstreamer CMD ERROR {line}')
 

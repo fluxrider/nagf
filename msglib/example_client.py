@@ -3,8 +3,6 @@
 # LD_LIBRARY_PATH=. ./example_client.py
 
 import os
-import stat
-import mmap
 import ctypes
 msglib = ctypes.CDLL("msglib.so", use_errno=True)
 msglib.msglib_connect.restype = ctypes.c_void_p
@@ -24,10 +22,10 @@ msgmgr = ctypes.c_void_p(msglib.msglib_connect(name.encode(), length, False, cty
 if error.value != 0: raise RuntimeError(f'msglib_connect:{line.value}: {os.strerror(error.value)}')
 msg = msglib.msglib_get_mem(msgmgr)
 
-msg[0] = 23
-
 error = msglib.msglib_lock(msgmgr, ctypes.pointer(line))
 if error: raise RuntimeError(f'msglib_lock:{line.value}: {error.decode()}')
+
+msg[0] = 23
 
 error = msglib.msglib_post(msgmgr, ctypes.pointer(line))
 if error: raise RuntimeError(f'msglib_post:{line.value}: {error.decode()}')

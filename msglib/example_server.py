@@ -4,8 +4,6 @@
 
 import time
 import os
-import stat
-import mmap
 import ctypes
 msglib = ctypes.CDLL("msglib.so", use_errno=True)
 msglib.msglib_connect.restype = ctypes.c_void_p

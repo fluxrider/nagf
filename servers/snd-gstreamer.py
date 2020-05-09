@@ -136,6 +136,55 @@ handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
 threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()
 
+# TMP tinker with appsrc
+source = Gst.ElementFactory.make("appsrc")
+raw = Gst.ElementFactory.make('rawaudioparse')
+raw.set_property('format', 'pcm')
+raw.set_property('pcm-format', 's8')
+raw.set_property('sample-rate', 8000)
+raw.set_property('num-channels', 1)
+raw.set_property('use-sink-caps', False)
+convert = Gst.ElementFactory.make("audioconvert")
+resample = Gst.ElementFactory.make("audioresample")
+volume = Gst.ElementFactory.make("volume")
+sink = Gst.ElementFactory.make("autoaudiosink")
+pipe = Gst.Pipeline.new()
+pipe.add(source)
+pipe.add(raw)
+pipe.add(convert)
+pipe.add(resample)
+pipe.add(volume)
+pipe.add(sink)
+source.link(raw)
+raw.link(convert)
+convert.link(resample)
+resample.link(volume)
+volume.link(sink)
+volume.set_property('volume', combine_volume(1, 1))
+source.set_property('duration', Gst.CLOCK_TIME_NONE)
+source.set_property('size', -1)
+source.set_property('is-live', True)
+source.set_property('blocksize', 8000 / 60)
+
+def on_need_data(src, n):
+  print(f'on need data {n}')
+  data = []
+  for i in range(int(n/2)):
+    data.append(127)
+  for i in range(int(n/2)):
+    data.append(129) # -127
+  src.emit('push-buffer', Gst.Buffer.new_wrapped(bytearray(data)))
+  
+def on_enough_data(src):
+  print("on enough data")
+  src.emit('end_of_stream')
+
+source.connect('need-data', on_need_data)
+source.connect('enough-data', on_enough_data)
+
+pipe.set_state(Gst.State.PLAYING)
+threading.Thread(target=handle_message_loop, args=(pipe,), daemon=True).start()
+
 try:
   # TODO find a way to do this check without an ugly delay (and intense checks)
   while handle_fifo_loop_thread.is_alive() and not error:

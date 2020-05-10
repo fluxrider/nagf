@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
+# PYTHONPATH=. LD_LIBRARY_PATH=msglib ./servers/snd-gstreamer.py
 
 # A simple gstreamer-based implementation of a sound server.
 # - blindly uses a high-level 'playbin' for the bg song.
@@ -16,18 +17,40 @@ import contextlib
 gi.require_version('Gst', '1.0')
 gi.require_version('GstAudio', '1.0')
 from gi.repository import Gst, GstAudio
+from msglib.msgmgr import MsgMgr
 
+error = None
 Gst.init(None)
 
+# utils
 def combine_volume(cubic, linear):
   return linear * GstAudio.StreamVolume.convert_volume(GstAudio.StreamVolumeFormat.CUBIC, GstAudio.StreamVolumeFormat.LINEAR, cubic)
 
+# procedural audio stream
+def on_need_data(src, n, extra):
+  global error
+  try:
+    client = extra[0]
+    data = client.send(n.to_bytes(4, byteorder=sys.byteorder, signed=False))
+    if len(data) == 0:
+      src.emit('end_of_stream')
+    else:
+      src.emit('push-buffer', Gst.Buffer.new_wrapped(bytearray(data)))
+  except Exception as e:
+    error = e
+
+def on_enough_data(src):
+  global error
+  try:
+    src.emit('end_of_stream')
+  except Exception as e:
+    error = e
+
 # background song (i.e. only one plays at a time)
 bg = Gst.ElementFactory.make('playbin')
-# TODO may want to: fakesink = Gst.ElementFactory.make("fakesink"); self.player.set_property("video-sink", fakesink)
+bg.set_property('video-sink', Gst.ElementFactory.make('fakesink'))
 
 # listen to gstreamer events
-error = None
 def handle_message_loop(player):
   global error
   try:
@@ -90,17 +113,19 @@ def handle_fifo_loop():
           linear = float(parts[-1])
           path = ' '.join(parts[1:-2])
           p = Gst.ElementFactory.make('playbin')
+          p.set_property('video-sink', Gst.ElementFactory.make('fakesink'))
           p.set_property('uri', f'file://{os.path.abspath(path)}')
           p.set_property('volume', combine_volume(cubic, linear))
           p.set_state(Gst.State.PLAYING)
           threading.Thread(target=handle_message_loop, args=(p,), daemon=True).start()
-        # cmd: raw <fifo-path>
+        # cmd: raw <shm-channel> <volume_cubic> <volume_linear>
         elif line.startswith('raw '):
           parts = line.split()
           cubic = float(parts[-2])
           linear = float(parts[-1])
           path = ' '.join(parts[1:-2])
-          source = Gst.ElementFactory.make("filesrc")
+          client = MsgMgr(path)
+          source = Gst.ElementFactory.make("appsrc")
           raw = Gst.ElementFactory.make('rawaudioparse')
           raw.set_property('format', 'pcm')
           raw.set_property('pcm-format', 's8')
@@ -123,8 +148,12 @@ def handle_fifo_loop():
           convert.link(resample)
           resample.link(volume)
           volume.link(sink)
-          source.set_property("location", os.path.abspath(path))
           volume.set_property('volume', combine_volume(cubic, linear))
+          source.set_property('duration', Gst.CLOCK_TIME_NONE)
+          source.set_property('size', -1)
+          source.set_property('blocksize', 8000 / 60)
+          source.connect('need-data', on_need_data, (client,))
+          source.connect('enough-data', on_enough_data)
           pipe.set_state(Gst.State.PLAYING)
           threading.Thread(target=handle_message_loop, args=(pipe,), daemon=True).start()
         else:
@@ -135,55 +164,6 @@ bg.set_property('volume', combine_volume(1, 1))
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
 threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()
-
-# TMP tinker with appsrc
-source = Gst.ElementFactory.make("appsrc")
-raw = Gst.ElementFactory.make('rawaudioparse')
-raw.set_property('format', 'pcm')
-raw.set_property('pcm-format', 's8')
-raw.set_property('sample-rate', 8000)
-raw.set_property('num-channels', 1)
-raw.set_property('use-sink-caps', False)
-convert = Gst.ElementFactory.make("audioconvert")
-resample = Gst.ElementFactory.make("audioresample")
-volume = Gst.ElementFactory.make("volume")
-sink = Gst.ElementFactory.make("autoaudiosink")
-pipe = Gst.Pipeline.new()
-pipe.add(source)
-pipe.add(raw)
-pipe.add(convert)
-pipe.add(resample)
-pipe.add(volume)
-pipe.add(sink)
-source.link(raw)
-raw.link(convert)
-convert.link(resample)
-resample.link(volume)
-volume.link(sink)
-volume.set_property('volume', combine_volume(1, 1))
-source.set_property('duration', Gst.CLOCK_TIME_NONE)
-source.set_property('size', -1)
-source.set_property('is-live', True)
-source.set_property('blocksize', 8000 / 60)
-
-def on_need_data(src, n):
-  print(f'on need data {n}')
-  data = []
-  for i in range(int(n/2)):
-    data.append(127)
-  for i in range(int(n/2)):
-    data.append(129) # -127
-  src.emit('push-buffer', Gst.Buffer.new_wrapped(bytearray(data)))
-  
-def on_enough_data(src):
-  print("on enough data")
-  src.emit('end_of_stream')
-
-source.connect('need-data', on_need_data)
-source.connect('enough-data', on_enough_data)
-
-pipe.set_state(Gst.State.PLAYING)
-threading.Thread(target=handle_message_loop, args=(pipe,), daemon=True).start()
 
 try:
   # TODO find a way to do this check without an ugly delay (and intense checks)

@@ -6,7 +6,7 @@ import sys
 import ctypes
 msglib = ctypes.CDLL("msglib.so", use_errno=True)
 msglib.msglib_connect.restype = ctypes.c_void_p
-msglib.msglib_get_mem.restype = ctypes.POINTER(ctypes.c_byte)
+msglib.msglib_get_mem.restype = ctypes.POINTER(ctypes.c_ubyte)
 msglib.msglib_wait.restype = ctypes.c_char_p
 msglib.msglib_post.restype = ctypes.c_char_p
 msglib.msglib_disconnect.restype = ctypes.c_char_p

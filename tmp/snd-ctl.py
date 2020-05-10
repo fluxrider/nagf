@@ -19,12 +19,12 @@ if not stat.S_ISFIFO(os.stat(server_fifo_path).st_mode): raise Exception("not a 
 with open(server_fifo_path, 'w') as f:
 
   # test basic functionality
-  #print("stream test_res/music.ogg", file=f, flush=True)
-  #time.sleep(2.4)
-  #print("volume .7 1", file=f, flush=True)
-  #time.sleep(2.4)
-  #print("stop", file=f, flush=True)
-  #time.sleep(1)
+  print("stream test_res/music.ogg", file=f, flush=True)
+  time.sleep(2.4)
+  print("volume .7 1", file=f, flush=True)
+  time.sleep(2.4)
+  print("stop", file=f, flush=True)
+  time.sleep(1)
   print("fire test_res/go.ogg 1 1", file=f, flush=True)
   time.sleep(1)
   print("fire test_res/go.ogg .7 1", file=f, flush=True)
@@ -34,13 +34,16 @@ with open(server_fifo_path, 'w') as f:
   with MsgMgr(shm_path, is_server=True) as server:
     print(f'raw {shm_path} 1 1', file=f, flush=True)
     limit = 8000 * 3
+    hz = 200
     while limit > 0:
       N = int.from_bytes(bytearray(server.receive()), byteorder=sys.byteorder, signed=False)
       limit -= N
       # feed pcm data
       samples_per_second = 8000
       # prepare the square wave
-      hz = 200 #random.randrange(150, 250)
+      if random.randrange(0, 100) > 90:
+        hz = random.randrange(150, 250)
+        print(f'change tone {hz}')
       n = int((samples_per_second / hz) / 2)
       wave = []
       for i in range(0, n):

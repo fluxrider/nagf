@@ -151,6 +151,7 @@ def handle_fifo_loop():
           volume.set_property('volume', combine_volume(cubic, linear))
           source.set_property('duration', Gst.CLOCK_TIME_NONE)
           source.set_property('size', -1)
+          source.set_property('is-live', True)
           source.set_property('blocksize', 8000 / 60)
           source.connect('need-data', on_need_data, (client,))
           source.connect('enough-data', on_enough_data)

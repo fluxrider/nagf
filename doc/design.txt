@@ -25,7 +25,7 @@ IPC
 evt
 - has double buffering (e.g. app sends a message to swap)
 - is responsible for all events (e.g. inputs, window)
-- other servers can listen to certain events (e.g. window resize)
+- other servers can listen to certain events (e.g. window resize) [perhaps not a great idea, because it makes multi-client mutex mandatory]
 - ctl like request_resize, or fake_input, or shutdown
 - is the heart (i.e. creates the window)
 - handles the tick (which therefore could be sped up independantely of the game) TODO or should it be gfx?

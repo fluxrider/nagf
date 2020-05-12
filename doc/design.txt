@@ -24,11 +24,9 @@ IPC
  
 evt
 - has double buffering (e.g. app sends a message to swap)
-- is responsible for all events (e.g. inputs, window)
-- other servers can listen to certain events (e.g. window resize) [perhaps not a great idea, because it makes multi-client mutex mandatory]
-- ctl like request_resize, or fake_input, or shutdown
-- is the heart (i.e. creates the window)
-- handles the tick (which therefore could be sped up independantely of the game) TODO or should it be gfx?
+- is responsible for input events (i.e. inputs, not window)
+- ctl like fake_input
+- [originally, I thought this server had to be the one creating the window, but I'm happy it is not the case. At least on Linux, I can poll input events without the need of a window]
 
 snd
 - handles loading formats (e.g. ogg, mp3, wav)
@@ -41,6 +39,7 @@ snd
 - stack of bg song, which takes care of pause/resume. This makes it unecessary for the client to query the position of the song.
 
 gfx
+- is responsible for the window, title, icon
 - handles loading image formats (e.g. png)
 - handles loading font formats
 - hides complexity of font rendering
@@ -53,9 +52,4 @@ dsk or mem
 - handles file i/o
 - handles complexity of parsing
 - potential for auto-save on mem change or time interval
-
-app
-- should benchmark true fps
-- should let evt run the tick
-- should let dsk/mem handle saves and whatnot
 

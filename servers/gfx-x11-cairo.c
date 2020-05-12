@@ -1,4 +1,4 @@
-// gcc -o evt-x11 evt-x11.c -Wall $(pkg-config --libs --cflags x11) -lpthread
+// gcc -o gfx-x11-cairo gfx-x11-cairo.c -Wall $(pkg-config --libs --cflags x11) -lpthread
 #include <stdio.h>
 #include <stdlib.h>
 #include <X11/Xlib.h>
@@ -11,14 +11,16 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <string.h>
+#include <cairo-xlib.h>
 
-#define XK_MISCELLANY
-#define XK_LATIN1
-#include <X11/keysymdef.h>
-#include <X11/XKBlib.h>
+uint64_t currentTimeMillis() {
+  struct timespec tp;
+  if(clock_gettime(CLOCK_MONOTONIC, &tp) == -1) { perror("read"); exit(1); }
+  return tp.tv_sec * 1000 + tp.tv_nsec / 1000000;
+}
 
 int x_error_handler(Display * d, XErrorEvent * e) {
-  printf("evt-x11 x_error_handler: %d\n", e->error_code);
+  printf("gfx-x11-cairo x_error_handler: %d\n", e->error_code);
   exit(EXIT_FAILURE);
 }
 
@@ -59,9 +61,11 @@ int main(int argc, char** argv) {
   Drawable window = XCreateSimpleWindow(display, DefaultRootWindow(display), 0, 0, W, H, 0, 0, 0);
   XSelectInput(display, window, ButtonPressMask | KeyPressMask | KeyReleaseMask);
   XMapWindow(display, window);
+  cairo_surface_t* surface = cairo_xlib_surface_create(display, window, DefaultVisual(display, DefaultScreen(display)), W, H);
+  cairo_t* g = cairo_create(surface);
 
   // create and in another thread read its messages
-  const char * server_fifo_path = "evt-x11.fifo";
+  const char * server_fifo_path = "gfx-x11-cairo.fifo";
   if(unlink(server_fifo_path) == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
   if(mkfifo(server_fifo_path, S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
   struct shared_amongst_thread_t t;
@@ -72,29 +76,44 @@ int main(int argc, char** argv) {
   pthread_t fifo_thread;
   pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
 
-  // listen to x11 events
+  int frame_count = 0;
+  uint64_t t0 = currentTimeMillis();
   while(t.running) {
-    XEvent event;
-    XNextEvent(display, &event);
-    switch(event.type) {
-      // keyboard
-      case KeyRelease: {
-        KeySym key = XkbKeycodeToKeysym(display, event.xkey.keycode, 0, event.xkey.state & ShiftMask ? 1 : 0);
-        switch(key) {
-          case XK_Escape: t.running = false; break;
-          case XK_T: XStoreName(display, window, "cool Title"); printf("T\n"); break;
-          case XK_t: XStoreName(display, window, "cool title"); printf("t\n"); break;
-        }
-        break;
+    // events
+    while(XPending(display)) {
+      XEvent event;
+      XNextEvent(display, &event);
+      switch(event.type) {
+        // keyboard
+        case KeyRelease:
+          break;
+        // mouse
+        case ButtonPress:
+          printf("You pressed a button at (%d,%d)\n", event.xbutton.x, event.xbutton.y);
+          break;
       }
-      // mouse
-      case ButtonPress:
-        printf("You pressed a button at (%d,%d)\n", event.xbutton.x, event.xbutton.y);
-        break;
     }
+
+    // time flow
+    uint64_t t1 = currentTimeMillis();
+    double delta_time = (t1 - t0) / 1000.0;
+    if (delta_time < (1.0 / 60)) continue; // commented out, don't cap
+    t0 = t1;
+    // fps
+    frame_count++;
+    printf("%d: %f\n", frame_count, 1 / delta_time);
+
+    // cairo clear
+    cairo_set_source_rgb(g, 1, 1, 1);
+    cairo_paint(g);
+    
+    // flush
+    cairo_surface_flush(surface);
+    XFlush(display);
   }
 
   // cleanup
+  cairo_surface_destroy(surface);
   XDestroyWindow(display, window);
   XCloseDisplay(display);
   if(unlink(server_fifo_path) == -1) { perror("unlink"); exit(EXIT_FAILURE); }

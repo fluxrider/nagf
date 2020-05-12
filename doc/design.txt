@@ -34,8 +34,8 @@ evt
  buttons include all keyboard buttons of interest (i.e. letters, numbers, arrows, esc, tab, alts, shifts, spacebar, ctrls, F1-12, enter, backspace, backtick, [], pgup/down, ,.;'\/)
  buttons also include MC x mouse left, right, middle
  buttons also include GC x nagf-gamepad mappings (i.e. R1-3, L1-3, start, home, select, north/south/east/west, up/down/left/right)
- MC x mouse movement (x, y, wheel) signed byte where wheel is normalized as 127 being 1 and -127 being -1
- GC x nagf-gamepad mapping of AXIS-LX/LY/RX/RY, TRIGGER-L/R which overlap in meaning with whichever R/L amongst 1-3 is a trigger, all of which are a normalized signed byte like the mouse wheel
+ MC x mouse movement (x, y, wheel) signed byte
+ GC x nagf-gamepad mapping of AXIS-LX/LY/RX/RY, TRIGGER-L/R which overlap in meaning with whichever R/L amongst 1-3 is a trigger, all of which are a normalized signed byte (127 to -127, to mean 1 to -1)
  Recap:
   Buttons:
     1 kbd x A-Z,0-9,up/down/left/right,esc,tab,altL/R,ctrlL/R,SHIFTL/R,spacebar,F1-12,enter,backspace,pgup/down,`[].;'\/, (where the last comma is included)

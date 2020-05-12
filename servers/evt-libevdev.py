@@ -30,6 +30,7 @@ mutex = threading.Lock()
 held = [False] * libevdev.EV_KEY.KEY_MAX.value
 pressed = [0] * libevdev.EV_KEY.KEY_MAX.value
 released = [False] * libevdev.EV_KEY.KEY_MAX.value
+mouse = {libevdev.EV_REL.REL_X.value : 0, libevdev.EV_REL.REL_Y.value : 0, libevdev.EV_REL.REL_WHEEL.value : 0}
 
 # thread that listens to a device
 def handle_device(path):
@@ -45,6 +46,7 @@ def handle_device(path):
         if mapping_mode:
           print(evt)
         else:
+          # buttons and keys
           if evt.matches(libevdev.EV_KEY):
             index = evt.code.value # e.g. 103 for KEY_UP
             mutex.acquire()
@@ -57,6 +59,12 @@ def handle_device(path):
               held[index] = False
               released[index] = True
             mutex.release()
+          # mouse x/y/wheel
+          if evt.matches(libevdev.EV_REL):
+            if evt.code.value in mouse:
+              mutex.acquire()
+              mouse[evt.code.value] += evt.value
+              mutex.release()
 
   except Exception as e:
     # lost device is not a fatal error
@@ -97,6 +105,7 @@ def handle_client():
         bits = bitarray.bitarray()
         # TMP just give up/down/left/right
         mutex.acquire()
+        # keys and buttons
         for k in [libevdev.EV_KEY.KEY_UP, libevdev.EV_KEY.KEY_DOWN, libevdev.EV_KEY.KEY_LEFT, libevdev.EV_KEY.KEY_RIGHT]:
           index = k.value
           h = held[index]
@@ -105,8 +114,19 @@ def handle_client():
           released[index] = False
           pressed[index] = 0
           bits.extend([h, p >= 2, p == 1 or p > 2, r])
+        # mouse
+        data = []
+        for k in mouse:
+          if mouse[k] > 127: mouse[k] = 127
+          elif mouse[k] < -127: mouse[k] = -127
+        data.extend(mouse[libevdev.EV_REL.REL_X.value].to_bytes(1, byteorder='little', signed=True))
+        data.extend(mouse[libevdev.EV_REL.REL_Y.value].to_bytes(1, byteorder='little', signed=True))
+        data.extend(mouse[libevdev.EV_REL.REL_WHEEL.value].to_bytes(1, byteorder='little', signed=True))
+        #data = [mouse[libevdev.EV_REL.REL_X.value], mouse[libevdev.EV_REL.REL_Y.value], mouse[libevdev.EV_REL.REL_WHEEL.value]]
+        for k in mouse: mouse[k] = 0
+        # virtual nagf-gamepads
         mutex.release()
-        server.reply(bits.tobytes())
+        server.reply(bits.tobytes() + bytes(data))
   except Exception as e:
     error = e
     should_quit.set()
@@ -114,6 +134,5 @@ if not mapping_mode:
   threading.Thread(target=handle_client, daemon=True).start()
 
 # wait
-print(mapping_mode)
 should_quit.wait()
 if error: print(f'{str(error)}')

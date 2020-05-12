@@ -27,6 +27,34 @@ evt
 - is responsible for input events (i.e. inputs, not window)
 - ctl like fake_input
 - [originally, I thought this server had to be the one creating the window, but I'm happy it is not the case. At least on Linux, I can poll input events without the need of a window]
+- message layout
+ buttons held state (1 bit)
+ buttons pressed count since last check (2 bits, from 0 to 3)
+ buttons released count since last check (2 bits, from 0 to 3)
+ buttons include all keyboard buttons of interest (i.e. letters, numbers, arrows, esc, tab, alts, shifts, spacebar, ctrls, F1-12, enter, backspace, backtick, [], pgup/down, ,.;'\/)
+ buttons also include MC x mouse left, right, middle
+ buttons also include GC x nagf-gamepad mappings (i.e. R1-3, L1-3, start, home, select, north/south/east/west, up/down/left/right)
+ MC x mouse movement (x, y, wheel) signed byte where wheel is normalized as 127 being 1 and -127 being -1
+ GC x nagf-gamepad mapping of AXIS-LX/LY/RX/RY, TRIGGER-L/R which overlap in meaning with whichever R/L amongst 1-3 is a trigger, all of which are a normalized signed byte like the mouse wheel
+ Recap:
+  Buttons:
+    1 kbd x A-Z,0-9,up/down/left/right,esc,tab,altL/R,ctrlL/R,SHIFTL/R,spacebar,F1-12,enter,backspace,pgup/down,`[].;'\/, (where the last comma is included)
+     = 26+10+4+9+12+4+9 = 74 buttons
+    MC mouse x L/R/M
+     = MC * 3 buttons
+    KC gamepad x R1-3, L1-3, start, home, select, north/south/east/west, up/down/left/right
+     = KC * 17 buttons
+    each buttons is stores as held (1 bit) / pressed (P bits) / released (R bits)
+    = (74 + MC * 3 + KC * 17) * (1 + P + R)
+    = 462 bits, or 57.75 bytes (MC=4, KC=4, P=1, R=1) [low bound of what is acceptable]
+    = 1170 bits, or 146.25 bytes (MC=8, KC=8, P=2, R=2) [high bound of what is overkill]
+    = 616 bits, or 77 bytes (MC=4, KC=4, P=2, R=1) [my design pick]
+ Relative:
+   4 mouse * x,y,wheel, a byte each = 12 bytes
+ Absolute:
+   4 nagf-gamepad * AXIS-LX/LY/RX/RY, TRIGGER-L/R, a byte each = 24 bytes
+ Total:
+  113 bytes messages
 
 snd
 - handles loading formats (e.g. ogg, mp3, wav)

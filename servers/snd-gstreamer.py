@@ -4,7 +4,8 @@
 
 # A simple gstreamer-based implementation of a sound server.
 # - blindly uses a high-level 'playbin' for the bg song.
-# - blindly uses multiple high-level 'playbin' for sound clips.
+# - blindly uses multiple high-level 'playbin' for sound clips, no caching.
+# - supports procedural audio stream (using QNX style message passing)
 # - fail fast
 
 import os

@@ -2,20 +2,19 @@
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 import os
 import sys
-import time
 import fcntl
 import libevdev
 import threading
 import watchdog.observers
 import watchdog.events
 
-has_error = threading.Event()
+should_quit = threading.Event()
 error = None
 
 # thread that listens to a device
 def handle_device(path):
   global error
-  global has_error
+  global should_quit
   try:
     fd = open(path, 'rb')
     fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
@@ -28,7 +27,7 @@ def handle_device(path):
     # lost device is not a fatal error
     if not isinstance(e, OSError) or e.errno != 19:
       error = e
-      has_error.set()
+      should_quit.set()
 
 # listen to existing devices
 def is_of_interest(path):
@@ -52,6 +51,6 @@ observer = watchdog.observers.Observer()
 observer.schedule(MyINotify(), folder, recursive=False)
 observer.start()
 
-# wait until an error happens
-has_error.wait()
-print(f'{str(error)}')
+# wait
+should_quit.wait()
+if error: print(f'{str(error)}')

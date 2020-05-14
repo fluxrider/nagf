@@ -4,7 +4,7 @@
 
 # A libevdev-based input devices event listener.
 # - first use it in 'mapping' mode (i.e. without arg) to spew a mapping file
-# - next use it with up to 4 mapping file specified as argument, which are the virtual nagf-gamepads
+# - next use it with up to 4 mapping files specified as argument, which are the virtual nagf-gamepads
 # - this implementation merges all mice in a single one, making nagf-mouse 2,3 and 4 empty
 
 # Note that the nagf input interface is low level (i.e. is not aware of window nor focus).
@@ -21,7 +21,14 @@ import watchdog.events
 from msglib.msgmgr import MsgMgr
 import bitarray
 
-mapping_mode = len(sys.argv) <= 1
+mapping_count = len(sys.argv) - 1 
+mapping_mode = mapping_count == 0
+M_COUNT = 4
+G_COUNT = 4
+G_KEY_COUNT = 17
+M_KEY_COUNT = 3
+G_AXIS_AND_TRIGGER_COUNT = 6
+if mapping_count > G_COUNT: raise RuntimeException("Too many virtual gamepad mapping specified")
 
 should_quit = threading.Event()
 error = None
@@ -46,13 +53,6 @@ keys = [
   libevdev.EV_KEY.KEY_PAGEUP, libevdev.EV_KEY.KEY_PAGEDOWN,
   libevdev.EV_KEY.KEY_GRAVE, libevdev.EV_KEY.KEY_LEFTBRACE, libevdev.EV_KEY.KEY_RIGHTBRACE, libevdev.EV_KEY.KEY_DOT, libevdev.EV_KEY.KEY_SEMICOLON, libevdev.EV_KEY.KEY_APOSTROPHE, libevdev.EV_KEY.KEY_BACKSLASH, libevdev.EV_KEY.KEY_SLASH, libevdev.EV_KEY.KEY_COMMA,
   libevdev.EV_KEY.BTN_LEFT, libevdev.EV_KEY.BTN_RIGHT, libevdev.EV_KEY.BTN_MIDDLE,
-  None, None, None, # mouse 2
-  None, None, None, # mouse 3
-  None, None, None, # mouse 4
-  None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, # gamepad 1
-  None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, # gamepad 2
-  None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, # gamepad 3
-  None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None # gamepad 4
 ]
 held = [False] * libevdev.EV_KEY.KEY_MAX.value
 pressed = [0] * libevdev.EV_KEY.KEY_MAX.value
@@ -132,18 +132,26 @@ def handle_client():
         bits = bitarray.bitarray()
         # TMP just give up/down/left/right
         mutex.acquire()
-        # keys and buttons
+        # keys and buttons (but not gamepad's)
         for k in keys:
-          if k:
-            index = k.value
-            h = held[index]
-            r = released[index]
-            p = pressed[index]
-            released[index] = False
-            pressed[index] = 0
-            bits.extend([h, p >= 2, p == 1 or p > 2, r])
-          else:
+          index = k.value
+          h = held[index]
+          r = released[index]
+          p = pressed[index]
+          released[index] = False
+          pressed[index] = 0
+          bits.extend([h, p >= 2, p == 1 or p > 2, r])
+        # unsupported mice 2,3,4
+        for i in range((M_COUNT - 1) * M_KEY_COUNT):
+          bits.extend([False, False, False, False])
+        # virtual gamepad keys
+        for i in range(mapping_count):
+          # TMP
+          for j in range(G_KEY_COUNT):
             bits.extend([False, False, False, False])
+        # missing virtual gamepad keys
+        for i in range((G_COUNT - mapping_count) * G_KEY_COUNT):
+          bits.extend([False, False, False, False])
         # mouse
         data = []
         for k in mouse:
@@ -154,10 +162,15 @@ def handle_client():
         data.extend(mouse[libevdev.EV_REL.REL_WHEEL.value].to_bytes(1, byteorder='little', signed=True))
         for k in mouse: mouse[k] = 0
         # empty mouse 2, 3 and 4
-        data.extend([0, 0, 0])
-        data.extend([0, 0, 0])
-        data.extend([0, 0, 0])
-        # virtual nagf-gamepads
+        for i in range((M_COUNT - 1)):
+          data.extend([0] * M_KEY_COUNT)
+        # virtual gamepads axis and triggers
+        for i in range(mapping_count):
+          # TMP
+          data.extend([0] * G_AXIS_AND_TRIGGER_COUNT)
+        # missing virtual gamepads axis and triggers
+        for i in range((G_COUNT - mapping_count)):
+          data.extend([0] * G_AXIS_AND_TRIGGER_COUNT)
         mutex.release()
         server.reply(bits.tobytes() + bytes(data))
   except Exception as e:

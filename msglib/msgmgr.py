@@ -92,8 +92,8 @@ class MsgMgr:
     if error: raise RuntimeError(f'msglib_post:{line.value}: {error.decode()}')
 
   # context managers interface
-  def __enter__ (self):
+  def __enter__(self):
     return self
 
-  def __exit__ (self, type, value, tb):
+  def __exit__(self, type, value, tb):
     self.disconnect()

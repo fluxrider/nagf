@@ -13,6 +13,7 @@
 
 import os
 import sys
+import time
 import fcntl
 import libevdev
 import threading
@@ -28,12 +29,21 @@ G_COUNT = 4
 G_KEY_COUNT = 17
 M_KEY_COUNT = 3
 G_AXIS_AND_TRIGGER_COUNT = 6
-if mapping_count > G_COUNT: raise RuntimeException("Too many virtual gamepad mapping specified")
+if mapping_count > G_COUNT: raise RuntimeError("Too many virtual gamepad mapping specified")
+
+buttons = ['R1', 'R2', 'R3', 'L1', 'L2', 'L3', 'START', 'HOME', 'SELECT', 'NORTH', 'SOUTH', 'EAST', 'WEST', 'UP', 'DOWN', 'LEFT', 'RIGHT']
+axes = ['LX', 'LY', 'RX', 'RY']
+triggers = ['LT', 'RT']
+mapping = {}
+for b in buttons: mapping[b] = set()
+for a in axes: mapping[a] = set()
+for t in triggers: mapping[t] = set()
 
 should_quit = threading.Event()
 error = None
 
 mutex = threading.Lock()
+current_mapping_label = None
 keys = [
   libevdev.EV_KEY.KEY_A, libevdev.EV_KEY.KEY_B, libevdev.EV_KEY.KEY_C, libevdev.EV_KEY.KEY_D, libevdev.EV_KEY.KEY_E, libevdev.EV_KEY.KEY_F, libevdev.EV_KEY.KEY_G, libevdev.EV_KEY.KEY_H, libevdev.EV_KEY.KEY_I, libevdev.EV_KEY.KEY_J, libevdev.EV_KEY.KEY_K, libevdev.EV_KEY.KEY_L, libevdev.EV_KEY.KEY_M, libevdev.EV_KEY.KEY_N, libevdev.EV_KEY.KEY_O, libevdev.EV_KEY.KEY_P, libevdev.EV_KEY.KEY_Q, libevdev.EV_KEY.KEY_R, libevdev.EV_KEY.KEY_S, libevdev.EV_KEY.KEY_T, libevdev.EV_KEY.KEY_U, libevdev.EV_KEY.KEY_V, libevdev.EV_KEY.KEY_W, libevdev.EV_KEY.KEY_X, libevdev.EV_KEY.KEY_Y, libevdev.EV_KEY.KEY_Z,
   libevdev.EV_KEY.KEY_0, libevdev.EV_KEY.KEY_1, libevdev.EV_KEY.KEY_2, libevdev.EV_KEY.KEY_3, libevdev.EV_KEY.KEY_4, libevdev.EV_KEY.KEY_5, libevdev.EV_KEY.KEY_6, libevdev.EV_KEY.KEY_7, libevdev.EV_KEY.KEY_8, libevdev.EV_KEY.KEY_9,
@@ -63,15 +73,24 @@ mouse = {libevdev.EV_REL.REL_X.value : 0, libevdev.EV_REL.REL_Y.value : 0, libev
 def handle_device(path):
   global error
   global should_quit
+  global mapping_fd
   try:
     fd = open(path, 'rb')
     fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
     device = libevdev.Device(fd)
-    print(f'Listening to events of {device.name}')
+    print(f'Listening to events of {device.name}.')
     while True:
       for evt in device.events():
         if mapping_mode:
-          print(evt)
+          if evt.matches(libevdev.EV_KEY, 1) or evt.matches(libevdev.EV_ABS):
+            # ignore weak abs
+            if evt.matches(libevdev.EV_ABS):
+              info = device.absinfo[evt.code]
+              if evt.value <= info.maximum * .7 and evt.value >= info.minimum * .7: continue
+            # mapping mode prints device id / event detail for the current mapping going on
+            mutex.acquire()
+            mapping[current_mapping_label].add(f'{path} {evt.type} {evt.code}')
+            mutex.release()
         else:
           # buttons and keys
           if evt.matches(libevdev.EV_KEY):
@@ -92,7 +111,6 @@ def handle_device(path):
               mutex.acquire()
               mouse[evt.code.value] += evt.value
               mutex.release()
-
   except Exception as e:
     # lost device is not a fatal error
     if not isinstance(e, OSError) or e.errno != 19:
@@ -178,7 +196,39 @@ def handle_client():
     should_quit.set()
 if not mapping_mode:
   threading.Thread(target=handle_client, daemon=True).start()
+  # wait
+  should_quit.wait()
+  if error: print(f'{str(error)}')
 
-# wait
-should_quit.wait()
-if error: print(f'{str(error)}')
+# mapping mode
+else:
+  print("-- Mapping virtual gamepad --")
+  print("You will have 3 seconds per button/axis/trigger to map device keys and what not to it.")
+  print("GO!")
+  for button in buttons:
+    if should_quit.is_set(): raise RuntimeError(f'{str(error)}')
+    mutex.acquire()
+    print(f'Virtual {button} button.')
+    current_mapping_label = button
+    mutex.release()
+    time.sleep(3)
+  for axis in axes:
+    if should_quit.is_set(): raise RuntimeError(f'{str(error)}')
+    mutex.acquire()
+    print(f'Virtual {axis} stick.')
+    current_mapping_label = axis
+    mutex.release()
+    time.sleep(3)
+  for trigger in triggers:
+    if should_quit.is_set(): raise RuntimeError(f'{str(error)}')
+    mutex.acquire()
+    print(f'Virtual {trigger} trigger.')
+    current_mapping_label = trigger
+    mutex.release()
+    time.sleep(3)
+  print("Have a nice day!")
+  # dump mapping
+  with open('gamepad.map', 'w') as f:
+    for k in mapping:
+      for m in mapping[k]:
+        print(f'{k} {m}', file=f)

@@ -81,6 +81,7 @@ keys = [
   libevdev.EV_KEY.KEY_GRAVE, libevdev.EV_KEY.KEY_LEFTBRACE, libevdev.EV_KEY.KEY_RIGHTBRACE, libevdev.EV_KEY.KEY_DOT, libevdev.EV_KEY.KEY_SEMICOLON, libevdev.EV_KEY.KEY_APOSTROPHE, libevdev.EV_KEY.KEY_BACKSLASH, libevdev.EV_KEY.KEY_SLASH, libevdev.EV_KEY.KEY_COMMA,
   libevdev.EV_KEY.BTN_LEFT, libevdev.EV_KEY.BTN_RIGHT, libevdev.EV_KEY.BTN_MIDDLE,
 ]
+# TODO held count, to support double binding of keys (e.g. mouse #1 buttons and mouse #2 buttons overlap)
 held = [False] * libevdev.EV_KEY.KEY_MAX.value
 pressed = [0] * libevdev.EV_KEY.KEY_MAX.value
 released = [False] * libevdev.EV_KEY.KEY_MAX.value
@@ -123,6 +124,7 @@ def handle_device(path):
             # mapping mode prints device id / event detail for the current mapping going on
             mutex.acquire()
             mapping[0][current_mapping_label].add(f'{path} {evt.type} {evt.code}')
+            # TODO hats need value, and axis for button also need value
             mutex.release()
         else:
           # buttons and keys
@@ -131,12 +133,14 @@ def handle_device(path):
             mutex.acquire()
             # pressed
             if evt.value == 1:
-              held[index] = True
-              pressed[index] += 1
+              if not held[index]:
+                held[index] = True
+                pressed[index] += 1
             # released
             elif evt.value == 0:
-              held[index] = False
-              released[index] = True
+              if held[index]:
+                held[index] = False
+                released[index] = True
             mutex.release()
           # mouse x/y/wheel
           if evt.matches(libevdev.EV_REL):
@@ -154,11 +158,16 @@ def handle_device(path):
                 print(f'sym trigger {i} {k}')
               if k in axes:
                 print(f'sym axis {i} {k}')
+          # TODO lost signal should behave like device drop (i.e. clear buttons and what not)
   except Exception as e:
     # lost device is not a fatal error
     if not isinstance(e, OSError) or e.errno != 19:
       error = e
       should_quit.set()
+    else:
+      # TODO lost device should clear their buttons, gen release
+      # and zero out any axis/triggers
+      pass
 
 # listen to existing devices
 def is_of_interest(path):
@@ -190,6 +199,7 @@ def handle_client():
     with MsgMgr('/evt-libevdev', is_server=True) as server:
       while(True):
         server.receive()
+        # TODO parse received data for 'no-focus-mode' and 'typing mode'
         bits = bitarray.bitarray()
         mutex.acquire()
         # keys and buttons (but not gamepad's)
@@ -233,6 +243,7 @@ def handle_client():
           data.extend([0] * G_AXIS_AND_TRIGGER_COUNT)
         mutex.release()
         server.reply(bits.tobytes() + bytes(data))
+        # TODO event chronological history (for fighter style combo detection, and just plain old text typing)
   except Exception as e:
     error = e
     should_quit.set()

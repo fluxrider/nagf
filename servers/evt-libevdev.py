@@ -16,6 +16,7 @@ import sys
 import time
 import fcntl
 import libevdev
+import traceback
 import threading
 import watchdog.observers
 import watchdog.events
@@ -34,10 +35,26 @@ if mapping_count > G_COUNT: raise RuntimeError("Too many virtual gamepad mapping
 buttons = ['R1', 'R2', 'R3', 'L1', 'L2', 'L3', 'START', 'HOME', 'SELECT', 'NORTH', 'SOUTH', 'EAST', 'WEST', 'UP', 'DOWN', 'LEFT', 'RIGHT']
 axes = ['LX', 'LY', 'RX', 'RY']
 triggers = ['LT', 'RT']
-mapping = {}
-for b in buttons: mapping[b] = set()
-for a in axes: mapping[a] = set()
-for t in triggers: mapping[t] = set()
+mapping = []
+
+for i in range(mapping_count):
+  mapping.append({})
+  for b in buttons: mapping[i][b] = set()
+  for a in axes: mapping[i][a] = set()
+  for t in triggers: mapping[i][t] = set()
+  with open(sys.argv[i+1]) as f:
+    for line in f:
+      line = line.strip()
+      parts = line.split()
+      k = parts[0]
+      if k not in buttons and k not in axes and k not in triggers:
+        print(f'BAD MAPPING FILE {sys.argv[i+1]}')
+      mapping[i][k].add(line[len(k)+1:])
+if mapping_mode:
+  mapping.append({})
+  for b in buttons: mapping[0][b] = set()
+  for a in axes: mapping[0][a] = set()
+  for t in triggers: mapping[0][t] = set()
 
 should_quit = threading.Event()
 error = None
@@ -68,17 +85,33 @@ held = [False] * libevdev.EV_KEY.KEY_MAX.value
 pressed = [0] * libevdev.EV_KEY.KEY_MAX.value
 released = [False] * libevdev.EV_KEY.KEY_MAX.value
 mouse = {libevdev.EV_REL.REL_X.value : 0, libevdev.EV_REL.REL_Y.value : 0, libevdev.EV_REL.REL_WHEEL.value : 0}
+#gamepad_held = []
+#gamepad_held[0] = {}
+#for b in buttons:
+
 
 # thread that listens to a device
 def handle_device(path):
   global error
   global should_quit
-  global mapping_fd
+  global mapping
   try:
     fd = open(path, 'rb')
     fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
     device = libevdev.Device(fd)
     print(f'Listening to events of {device.name}.')
+    # identify any virtual gamepad mapping that involves this device
+    local_mapping = {}
+    if not mapping_mode:
+      for i in range(mapping_count):
+        for k in mapping[i]:
+          for line in mapping[i][k]:
+            if line.startswith(path+' '):
+              evt_type_code = line[len(path+' '):]
+              if evt_type_code not in local_mapping:
+                local_mapping[evt_type_code] = []
+              local_mapping[evt_type_code].append((k,i))
+    # listen to events
     while True:
       for evt in device.events():
         if mapping_mode:
@@ -89,7 +122,7 @@ def handle_device(path):
               if evt.value <= info.maximum * .7 and evt.value >= info.minimum * .7: continue
             # mapping mode prints device id / event detail for the current mapping going on
             mutex.acquire()
-            mapping[current_mapping_label].add(f'{path} {evt.type} {evt.code}')
+            mapping[0][current_mapping_label].add(f'{path} {evt.type} {evt.code}')
             mutex.release()
         else:
           # buttons and keys
@@ -111,6 +144,16 @@ def handle_device(path):
               mutex.acquire()
               mouse[evt.code.value] += evt.value
               mutex.release()
+          # virtual gamepad
+          evt_type_code = f'{evt.type} {evt.code}'
+          if evt_type_code in local_mapping:
+            for (k,i) in local_mapping[evt_type_code]:
+              if k in buttons:
+                print(f'sym button {i} {k}')
+              if k in triggers:
+                print(f'sym trigger {i} {k}')
+              if k in axes:
+                print(f'sym axis {i} {k}')
   except Exception as e:
     # lost device is not a fatal error
     if not isinstance(e, OSError) or e.errno != 19:
@@ -148,7 +191,6 @@ def handle_client():
       while(True):
         server.receive()
         bits = bitarray.bitarray()
-        # TMP just give up/down/left/right
         mutex.acquire()
         # keys and buttons (but not gamepad's)
         for k in keys:
@@ -198,7 +240,8 @@ if not mapping_mode:
   threading.Thread(target=handle_client, daemon=True).start()
   # wait
   should_quit.wait()
-  if error: print(f'{str(error)}')
+  if isinstance(error, Exception): traceback.print_tb(error.__traceback__)
+  if error: print(f'{error}')
 
 # mapping mode
 else:
@@ -229,6 +272,6 @@ else:
   print("Have a nice day!")
   # dump mapping
   with open('gamepad.map', 'w') as f:
-    for k in mapping:
-      for m in mapping[k]:
+    for k in mapping[0]:
+      for m in mapping[0][k]:
         print(f'{k} {m}', file=f)

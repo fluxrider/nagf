@@ -24,3 +24,4 @@ with Evt.Evt('/evt-libevdev') as evt:
     if evt.held(Evt.G): print(evt.axis_and_triggers())
     if evt.held(Evt.H): print(evt.histokey())
     if evt.held(Evt.L): print(evt.left_axis())
+    if evt.held(Evt.T): print(evt.right_trigger())

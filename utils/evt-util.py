@@ -174,8 +174,10 @@ class Evt:
   def __init__(self, name):
     self.client = MsgMgr(name)
     self.data = None
+    self.__cached_axis_and_triggers = None
 
   def poll(self, command=''):
+    self.__cached_axis_and_triggers = None
     self.data = self.client.send(command.encode())
 
   def held(self, key):
@@ -196,9 +198,11 @@ class Evt:
     return (u8_to_s8(self.data[index]), u8_to_s8(self.data[index+1]), u8_to_s8(self.data[index+2]))
 
   def axis_and_triggers(self, i=0):
-    if i < 0 or i >= G_COUNT: raise RuntimeException(f'Bad virtual gamepad index ({i}). Must be between 0 and {G_COUNT-1}.')
-    index = math.ceil(K_COUNT / 2) + M_COUNT * 3 + i * 6 # where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
-    return (u8_to_s8(self.data[index]), u8_to_s8(self.data[index+1]), u8_to_s8(self.data[index+2]), u8_to_s8(self.data[index+3]), self.data[index+4], self.data[index+5])
+    if not self.__cached_axis_and_triggers:
+      if i < 0 or i >= G_COUNT: raise RuntimeException(f'Bad virtual gamepad index ({i}). Must be between 0 and {G_COUNT-1}.')
+      index = math.ceil(K_COUNT / 2) + M_COUNT * 3 + i * 6 # where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
+      self.__cached_axis_and_triggers = (u8_to_s8(self.data[index]), u8_to_s8(self.data[index+1]), u8_to_s8(self.data[index+2]), u8_to_s8(self.data[index+3]), self.data[index+4], self.data[index+5])
+    return self.__cached_axis_and_triggers
     
   def histokey(self):
     index = math.ceil(K_COUNT / 2) + M_COUNT * 3 + G_COUNT * 6 # where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
@@ -224,6 +228,16 @@ class Evt:
     d = int(127 * deadzone)
     return (self.__deadzone_util(a[2],d), self.__deadzone_util(a[3],d))
 
+  def left_trigger(self, i=0, deadzone=.2):
+    v = self.axis_and_triggers(i)[4]
+    d = int(255 * deadzone)
+    return 0 if v < d else (v - d) / (255 - d)
+
+  def right_trigger(self, i=0, deadzone=.2):
+    v = self.axis_and_triggers(i)[5]
+    d = int(255 * deadzone)
+    return 0 if v < d else (v - d) / (255 - d)
+    
   # context managers interface
   def __enter__(self):
     return self

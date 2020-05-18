@@ -210,9 +210,20 @@ class Evt:
       if k != KEY_NONE: h.append((k, b[i]))
     return h
 
-  # TODO convenient mx,my,mw
-  # TODO convenient axis/trigger with deadzone normalize
-  
+  def __deadzone_util(self, v, d):
+    flip = 1 if v > 0 else -1
+    return 0 if abs(v) < abs(d) else (v - d * flip) / (127 - abs(d))
+    
+  def left_axis(self, i=0, deadzone=.2):
+    a = self.axis_and_triggers(i)
+    d = int(127 * deadzone)
+    return (self.__deadzone_util(a[0],d), self.__deadzone_util(a[1],d))
+
+  def right_axis(self, i=0, deadzone=.2):
+    a = self.axis_and_triggers(i)
+    d = int(127 * deadzone)
+    return (self.__deadzone_util(a[2],d), self.__deadzone_util(a[3],d))
+
   # context managers interface
   def __enter__(self):
     return self

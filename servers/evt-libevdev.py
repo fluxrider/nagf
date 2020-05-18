@@ -81,8 +81,7 @@ keys = [
   libevdev.EV_KEY.KEY_GRAVE, libevdev.EV_KEY.KEY_LEFTBRACE, libevdev.EV_KEY.KEY_RIGHTBRACE, libevdev.EV_KEY.KEY_DOT, libevdev.EV_KEY.KEY_SEMICOLON, libevdev.EV_KEY.KEY_APOSTROPHE, libevdev.EV_KEY.KEY_BACKSLASH, libevdev.EV_KEY.KEY_SLASH, libevdev.EV_KEY.KEY_COMMA,
   libevdev.EV_KEY.BTN_LEFT, libevdev.EV_KEY.BTN_RIGHT, libevdev.EV_KEY.BTN_MIDDLE,
 ]
-# TODO held count, to support double binding of keys (e.g. mouse #1 buttons and mouse #2 buttons overlap)
-held = [False] * libevdev.EV_KEY.KEY_MAX.value
+held = [0] * libevdev.EV_KEY.KEY_MAX.value
 pressed = [0] * libevdev.EV_KEY.KEY_MAX.value
 released = [False] * libevdev.EV_KEY.KEY_MAX.value
 mouse = {libevdev.EV_REL.REL_X.value : 0, libevdev.EV_REL.REL_Y.value : 0, libevdev.EV_REL.REL_WHEEL.value : 0}
@@ -133,14 +132,15 @@ def handle_device(path):
             mutex.acquire()
             # pressed
             if evt.value == 1:
-              if not held[index]:
-                held[index] = True
-                pressed[index] += 1
+              if held[index] == 0: pressed[index] += 1
+              held[index] += 1
             # released
             elif evt.value == 0:
-              if held[index]:
-                held[index] = False
-                released[index] = True
+              held[index] -= 1
+              if held[index] == 0: released[index] = True
+              if held[index] < 0:
+                held[index] = 0
+                print("WARNING held count went into negative")
             mutex.release()
           # mouse x/y/wheel
           if evt.matches(libevdev.EV_REL):
@@ -158,7 +158,11 @@ def handle_device(path):
                 print(f'sym trigger {i} {k}')
               if k in axes:
                 print(f'sym axis {i} {k}')
-          # TODO lost signal should behave like device drop (i.e. clear buttons and what not)
+  except EventsDroppedException as e:
+    # TODO lost signal should behave like device drop (i.e. clear buttons and what not)
+    print('State lost, re-synching:')
+    for evt in ctx.sync():
+      print(evt)
   except Exception as e:
     # lost device is not a fatal error
     if not isinstance(e, OSError) or e.errno != 19:
@@ -210,7 +214,7 @@ def handle_client():
           p = pressed[index]
           released[index] = False
           pressed[index] = 0
-          bits.extend([h, p >= 2, p == 1 or p > 2, r])
+          bits.extend([h > 0, p >= 2, p == 1 or p > 2, r])
         # unsupported mice 2,3,4
         for i in range((M_COUNT - 1) * M_KEY_COUNT):
           bits.extend([False, False, False, False])

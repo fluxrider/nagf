@@ -85,10 +85,23 @@ held = [0] * libevdev.EV_KEY.KEY_MAX.value
 pressed = [0] * libevdev.EV_KEY.KEY_MAX.value
 released = [False] * libevdev.EV_KEY.KEY_MAX.value
 mouse = {libevdev.EV_REL.REL_X.value : 0, libevdev.EV_REL.REL_Y.value : 0, libevdev.EV_REL.REL_WHEEL.value : 0}
-#gamepad_held = []
-#gamepad_held[0] = {}
-#for b in buttons:
-
+gamepad_held = []
+gamepad_pressed = []
+gamepad_released = []
+gamepad_abs = []
+for i in range(mapping_count):
+  gamepad_held.append({})
+  gamepad_pressed.append({})
+  gamepad_released.append({})
+  gamepad_abs.append({})
+  for b in buttons:
+    gamepad_held[i][b] = 0
+    gamepad_pressed[i][b] = 0
+    gamepad_released[i][b] = False
+  for a in axes:
+    gamepad_abs[i][a] = 0
+  for t in triggers:
+    gamepad_abs[i][t] = 0
 
 # thread that listens to a device
 def handle_device(path):
@@ -151,14 +164,39 @@ def handle_device(path):
           # virtual gamepad
           evt_type_code = f'{evt.type} {evt.code}'
           if evt_type_code in local_mapping:
+            info = device.absinfo[evt.code] if evt.matches(libevdev.EV_ABS) else None
             for (k,i) in local_mapping[evt_type_code]:
               if k in buttons:
-                print(f'sym button {i} {k}')
-              if k in triggers:
-                print(f'sym trigger {i} {k}')
-              if k in axes:
-                print(f'sym axis {i} {k}')
-  except EventsDroppedException as e:
+                if evt.matches(libevdev.EV_KEY):
+                  mutex.acquire()
+                  # pressed
+                  if evt.value == 1:
+                    if gamepad_held[i][k] == 0: gamepad_pressed[i][k] += 1
+                    gamepad_held[i][k] += 1
+                  # released
+                  elif evt.value == 0:
+                    gamepad_held[i][k] -= 1
+                    if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
+                    if gamepad_held[i][k] < 0:
+                      gamepad_held[i][k] = 0
+                      print("WARNING held count went into negative")
+                  mutex.release()
+                else:
+                  print("WARNING unsupported mapping of non-key to gamepad key")
+              if k in triggers or k in axes:
+                low = 0 if k in triggers else -127
+                high = 255 if k in triggers else 127
+                mutex.acquire()
+                if info: gamepad_abs[i][k] = int((evt.value - info.minimum) / (info.maximum - info.minimum) * (high - low)) + low
+                else: gamepad_abs[i][k] = int(evt.value * (high - low)) + low
+                if gamepad_abs[i][k] > high:
+                  gamepad_abs[i][k] = high
+                  print("WARNING somehow axis went out of bound {evt.value}")
+                if gamepad_abs[i][k] < low:
+                  gamepad_abs[i][k] = low
+                  print("WARNING somehow axis went out of bound {evt.value")
+                mutex.release()
+  except libevdev.EventsDroppedException as e:
     # TODO lost signal should behave like device drop (i.e. clear buttons and what not)
     print('State lost, re-synching:')
     for evt in ctx.sync():
@@ -220,9 +258,13 @@ def handle_client():
           bits.extend([False, False, False, False])
         # virtual gamepad keys
         for i in range(mapping_count):
-          # TMP
-          for j in range(G_KEY_COUNT):
-            bits.extend([False, False, False, False])
+          for b in buttons:
+            h = gamepad_held[i][b]
+            r = gamepad_pressed[i][b]
+            p = gamepad_released[i][b]
+            gamepad_released[i][b] = False
+            gamepad_pressed[i][b] = 0
+            bits.extend([h > 0, p >= 2, p == 1 or p > 2, r])
         # missing virtual gamepad keys
         for i in range((G_COUNT - mapping_count) * G_KEY_COUNT):
           bits.extend([False, False, False, False])
@@ -240,8 +282,10 @@ def handle_client():
           data.extend([0] * M_KEY_COUNT)
         # virtual gamepads axis and triggers
         for i in range(mapping_count):
-          # TMP
-          data.extend([0] * G_AXIS_AND_TRIGGER_COUNT)
+          for a in axes:
+            data.extend(gamepad_abs[i][a].to_bytes(1, byteorder='little', signed=True))
+          for t in triggers:
+            data.extend(gamepad_abs[i][t].to_bytes(1, byteorder='little', signed=False))
         # missing virtual gamepads axis and triggers
         for i in range((G_COUNT - mapping_count)):
           data.extend([0] * G_AXIS_AND_TRIGGER_COUNT)

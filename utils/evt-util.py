@@ -189,9 +189,17 @@ class Evt:
 
   def mouse(self, i=0):
     if i < 0 or i >= M_COUNT: raise RuntimeException(f'Bad mouse index ({i}). Must be between 0 and {M_COUNT-1}.')
-    index = math.ceil(K_COUNT / 2) + i * 3
+    index = math.ceil(K_COUNT / 2) + i * 3 # where 3 is (mx, my, mw)
     return (u8_to_s8(self.data[index]), u8_to_s8(self.data[index+1]), u8_to_s8(self.data[index+2]))
 
+  def axis_and_triggers(self, i=0):
+    if i < 0 or i >= G_COUNT: raise RuntimeException(f'Bad virtual gamepad index ({i}). Must be between 0 and {G_COUNT-1}.')
+    index = math.ceil(K_COUNT / 2) + M_COUNT * 3 + i * 6 # where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
+    return (u8_to_s8(self.data[index]), u8_to_s8(self.data[index+1]), u8_to_s8(self.data[index+2]), u8_to_s8(self.data[index+3]), self.data[index+4], self.data[index+5])
+
+  # TODO convenient mx,my,mw
+  # TODO convenient axis/trigger with deadzone normalize
+  
   # context managers interface
   def __enter__(self):
     return self

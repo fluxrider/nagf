@@ -184,13 +184,13 @@ def handle_device(path):
             # buttons and keys
             if evt.matches(libevdev.EV_KEY):
               if evt.value == 1 or evt.value == 0:
+                mutex.acquire()
                 try:
                   rank = histokey_rank.index(evt.code)
                   histokey.append((rank,evt.value))
                 except ValueError:
                   pass
                 index = evt.code.value # e.g. 103 for KEY_UP
-                mutex.acquire()
                 # pressed
                 if evt.value == 1:
                   if held[index] == 0: pressed[index] += 1
@@ -223,8 +223,8 @@ def handle_device(path):
                 if k in buttons:
                   if evt.matches(libevdev.EV_KEY):
                     if evt.value == 1 or evt.value == 0:
-                      histokey.append((histokey_rank.index(f'{k}_{i}'),evt.value))
                       mutex.acquire()
+                      histokey.append((histokey_rank.index(f'{k}_{i}'),evt.value))
                       # pressed
                       if evt.value == 1:
                         if gamepad_held[i][k] == 0: gamepad_pressed[i][k] += 1
@@ -244,7 +244,30 @@ def handle_device(path):
                           print("WARNING held count went into negative")
                       mutex.release()
                   else:
-                    print("WARNING unsupported mapping of non-key to gamepad key")
+                    # applying an arbitrary deadzone of .2
+                    # note that axis mapped on a button causes know discrepency on the held count
+                    was = gamepad_held[i][k]
+                    h = (evt.value - info.minimum) / (info.maximum - info.minimum) >= .2
+                    if h != was:
+                      mutex.acquire()
+                      histokey.append((histokey_rank.index(f'{k}_{i}'), 1 if h else 0))
+                      # pressed
+                      if h:
+                        gamepad_pressed[i][k] += 1
+                        gamepad_held[i][k] += 1
+                        if (i,k) not in touched_gkey: touched_gkey[(i,k)] = 0
+                        touched_gkey[(i,k)] += 1
+                      # released
+                      else:
+                        gamepad_held[i][k] -= 1
+                        if (i,k) not in touched_gkey or touched_gkey[(i,k)] == 0:
+                          pass
+                        else:
+                          touched_gkey[(i,k)] -= 1
+                        gamepad_released[i][k] = True
+                        if gamepad_held[i][k] < 0: gamepad_held[i][k] = 0
+                      mutex.release()
+
                 if k in triggers or k in axes:
                   touched_abs.add((i, k))
                   low = 0 if k in triggers else -127
@@ -326,8 +349,8 @@ def handle_client():
         for i in range(mapping_count):
           for b in buttons:
             h = gamepad_held[i][b]
-            r = gamepad_pressed[i][b]
-            p = gamepad_released[i][b]
+            r = gamepad_released[i][b]
+            p = gamepad_pressed[i][b]
             gamepad_released[i][b] = False
             gamepad_pressed[i][b] = 0
             bits.extend([h > 0, p >= 2, p == 1 or p > 2, r])

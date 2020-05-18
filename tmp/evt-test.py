@@ -25,3 +25,8 @@ with Evt.Evt('/evt-libevdev') as evt:
     if evt.held(Evt.H): print(evt.histokey())
     if evt.held(Evt.L): print(evt.left_axis())
     if evt.held(Evt.T): print(evt.right_trigger())
+    if evt.pressed(Evt.G0_R2): print("G0_R2 just pressed")
+    if evt.released(Evt.G0_R2): print("G0_R2 just released")
+    if evt.pressed(Evt.G0_R1): print("G0_R1 just pressed")
+    if evt.released(Evt.G0_R1): print("G0_R1 just released")
+

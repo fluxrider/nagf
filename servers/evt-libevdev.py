@@ -124,92 +124,143 @@ def handle_device(path):
               if evt_type_code not in local_mapping:
                 local_mapping[evt_type_code] = []
               local_mapping[evt_type_code].append((k,i))
+    # map of things we touched (to revert on disconnect)
+    touched_abs = set()
+    touched_key = {}
+    touched_gkey = {}
     # listen to events
     while True:
-      for evt in device.events():
-        if mapping_mode:
-          if evt.matches(libevdev.EV_KEY, 1) or evt.matches(libevdev.EV_ABS):
-            # ignore weak abs
-            if evt.matches(libevdev.EV_ABS):
-              info = device.absinfo[evt.code]
-              if evt.value <= info.maximum * .7 and evt.value >= info.minimum * .7: continue
-            # mapping mode prints device id / event detail for the current mapping going on
-            mutex.acquire()
-            mapping[0][current_mapping_label].add(f'{path} {evt.type} {evt.code}')
-            # TODO hats need value, and axis for button also need value
-            mutex.release()
-        else:
-          # buttons and keys
-          if evt.matches(libevdev.EV_KEY):
-            index = evt.code.value # e.g. 103 for KEY_UP
-            mutex.acquire()
-            # pressed
-            if evt.value == 1:
-              if held[index] == 0: pressed[index] += 1
-              held[index] += 1
-            # released
-            elif evt.value == 0:
-              held[index] -= 1
-              if held[index] == 0: released[index] = True
-              if held[index] < 0:
-                held[index] = 0
-                print("WARNING held count went into negative")
-            mutex.release()
-          # mouse x/y/wheel
-          if evt.matches(libevdev.EV_REL):
-            if evt.code.value in mouse:
+      try:
+        for evt in device.events():
+          if mapping_mode:
+            if evt.matches(libevdev.EV_KEY, 1) or evt.matches(libevdev.EV_ABS):
+              # ignore weak abs
+              if evt.matches(libevdev.EV_ABS):
+                info = device.absinfo[evt.code]
+                if evt.value <= info.maximum * .7 and evt.value >= info.minimum * .7: continue
+              # mapping mode prints device id / event detail for the current mapping going on
               mutex.acquire()
-              mouse[evt.code.value] += evt.value
+              mapping[0][current_mapping_label].add(f'{path} {evt.type} {evt.code}')
+              # TODO hats need value, and axis for button also need value
               mutex.release()
-          # virtual gamepad
-          evt_type_code = f'{evt.type} {evt.code}'
-          if evt_type_code in local_mapping:
-            info = device.absinfo[evt.code] if evt.matches(libevdev.EV_ABS) else None
-            for (k,i) in local_mapping[evt_type_code]:
-              if k in buttons:
-                if evt.matches(libevdev.EV_KEY):
-                  mutex.acquire()
-                  # pressed
-                  if evt.value == 1:
-                    if gamepad_held[i][k] == 0: gamepad_pressed[i][k] += 1
-                    gamepad_held[i][k] += 1
-                  # released
-                  elif evt.value == 0:
-                    gamepad_held[i][k] -= 1
-                    if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
-                    if gamepad_held[i][k] < 0:
-                      gamepad_held[i][k] = 0
-                      print("WARNING held count went into negative")
-                  mutex.release()
+          else:
+            # buttons and keys
+            if evt.matches(libevdev.EV_KEY):
+              index = evt.code.value # e.g. 103 for KEY_UP
+              mutex.acquire()
+              # pressed
+              if evt.value == 1:
+                if held[index] == 0: pressed[index] += 1
+                held[index] += 1
+                if index not in touched_key: touched_key[index] = 0
+                touched_key[index] += 1
+              # released
+              elif evt.value == 0:
+                held[index] -= 1
+                if index not in touched_key or touched_key[index] == 0:
+                  print("WARNING released by device, but never held by device")
                 else:
-                  print("WARNING unsupported mapping of non-key to gamepad key")
-              if k in triggers or k in axes:
-                low = 0 if k in triggers else -127
-                high = 255 if k in triggers else 127
+                  touched_key[index] -= 1
+                if held[index] == 0: released[index] = True
+                if held[index] < 0:
+                  held[index] = 0
+                  print("WARNING held count went into negative")
+              mutex.release()
+            # mouse x/y/wheel
+            if evt.matches(libevdev.EV_REL):
+              if evt.code.value in mouse:
                 mutex.acquire()
-                if info: gamepad_abs[i][k] = int((evt.value - info.minimum) / (info.maximum - info.minimum) * (high - low)) + low
-                else: gamepad_abs[i][k] = int(evt.value * (high - low)) + low
-                if gamepad_abs[i][k] > high:
-                  gamepad_abs[i][k] = high
-                  print("WARNING somehow axis went out of bound {evt.value}")
-                if gamepad_abs[i][k] < low:
-                  gamepad_abs[i][k] = low
-                  print("WARNING somehow axis went out of bound {evt.value")
+                mouse[evt.code.value] += evt.value
                 mutex.release()
-  except libevdev.EventsDroppedException as e:
-    # TODO lost signal should behave like device drop (i.e. clear buttons and what not)
-    print('State lost, re-synching:')
-    for evt in ctx.sync():
-      print(evt)
+            # virtual gamepad
+            evt_type_code = f'{evt.type} {evt.code}'
+            if evt_type_code in local_mapping:
+              info = device.absinfo[evt.code] if evt.matches(libevdev.EV_ABS) else None
+              for (k,i) in local_mapping[evt_type_code]:
+                if k in buttons:
+                  if evt.matches(libevdev.EV_KEY):
+                    mutex.acquire()
+                    # pressed
+                    if evt.value == 1:
+                      if gamepad_held[i][k] == 0: gamepad_pressed[i][k] += 1
+                      gamepad_held[i][k] += 1
+                      if (i,k) not in touched_gkey: touched_gkey[(i,k)] = 0
+                      touched_gkey[(i,k)] += 1
+                    # released
+                    elif evt.value == 0:
+                      gamepad_held[i][k] -= 1
+                      if (i,k) not in touched_gkey or touched_gkey[(i,k)] == 0:
+                        print("WARNING released by device, but never held by device")
+                      else:
+                        touched_gkey[(i,k)] -= 1
+                      if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
+                      if gamepad_held[i][k] < 0:
+                        gamepad_held[i][k] = 0
+                        print("WARNING held count went into negative")
+                    mutex.release()
+                  else:
+                    print("WARNING unsupported mapping of non-key to gamepad key")
+                if k in triggers or k in axes:
+                  touched_abs.add((i, k))
+                  low = 0 if k in triggers else -127
+                  high = 255 if k in triggers else 127
+                  mutex.acquire()
+                  if info: gamepad_abs[i][k] = int((evt.value - info.minimum) / (info.maximum - info.minimum) * (high - low)) + low
+                  else: gamepad_abs[i][k] = int(evt.value * (high - low)) + low
+                  if gamepad_abs[i][k] > high:
+                    gamepad_abs[i][k] = high
+                    print("WARNING somehow axis went out of bound {evt.value}")
+                  if gamepad_abs[i][k] < low:
+                    gamepad_abs[i][k] = low
+                    print("WARNING somehow axis went out of bound {evt.value")
+                  mutex.release()
+      except libevdev.EventsDroppedException as e:
+        print(f'{device.name} dropped some events.')
+        mutex.acquire()
+        for index in touched_key:
+          if touched_key[index] == 0: continue
+          held[index] -= touched_key[index]
+          touched_key[index] = 0
+          if held[index] == 0: released[index] = True
+          if held[index] < 0:
+            held[index] = 0
+            print("WARNING held count went into negative")
+        for i,k in touched_gkey:
+          if touched_gkey[(i,k)] == 0: continue
+          gamepad_held[i][k] -= touched_gkey[(i,k)]
+          touched_gkey[(i,k)] = 0
+          if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
+          if gamepad_held[i][k] < 0:
+            gamepad_held[i][k] = 0
+            print("WARNING held count went into negative")
+        for i, k in touched_abs: gamepad_abs[i][k] = 0
+        mutex.release()
+        for evt in ctx.sync():
+          print(f'sync {evt}')
   except Exception as e:
     # lost device is not a fatal error
     if not isinstance(e, OSError) or e.errno != 19:
       error = e
       should_quit.set()
     else:
-      # TODO lost device should clear their buttons, gen release
-      # and zero out any axis/triggers
-      pass
+      print(f'Lost device {device.name}.')
+      mutex.acquire()
+      for index in touched_key:
+        if touched_key[index] == 0: continue
+        held[index] -= touched_key[index]
+        if held[index] == 0: released[index] = True
+        if held[index] < 0:
+          held[index] = 0
+          print("WARNING held count went into negative")
+      for i,k in touched_gkey:
+        if touched_gkey[(i,k)] == 0: continue
+        gamepad_held[i][k] -= touched_gkey[(i,k)]
+        if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
+        if gamepad_held[i][k] < 0:
+          gamepad_held[i][k] = 0
+          print("WARNING held count went into negative")
+      for i, k in touched_abs: gamepad_abs[i][k] = 0
+      mutex.release()
 
 # listen to existing devices
 def is_of_interest(path):

@@ -15,5 +15,6 @@ with Evt.Evt('/evt-libevdev') as evt:
       print("ESC released")
       break
     if evt.pressed(Evt.G0_EAST): print("G0_EAST just pressed")
+    if evt.held(Evt.G0_SOUTH): print("G0_SOUTH held")
     if evt.held(Evt.M): print(evt.mouse())
     if evt.held(Evt.G): print(evt.axis_and_triggers())

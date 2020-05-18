@@ -3,6 +3,7 @@
 
 import time
 import math
+import bitarray
 from msglib.msgmgr import MsgMgr
 
 A = 0
@@ -160,8 +161,10 @@ G3_DOWN = 151
 G3_LEFT = 152
 G3_RIGHT = 153
 K_COUNT = 154
+KEY_NONE = 255
 M_COUNT = 4
 G_COUNT = 4
+H_COUNT = 16
 
 def u8_to_s8(u8):
   if u8 > 127: return u8 - 255 - 1
@@ -196,6 +199,16 @@ class Evt:
     if i < 0 or i >= G_COUNT: raise RuntimeException(f'Bad virtual gamepad index ({i}). Must be between 0 and {G_COUNT-1}.')
     index = math.ceil(K_COUNT / 2) + M_COUNT * 3 + i * 6 # where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
     return (u8_to_s8(self.data[index]), u8_to_s8(self.data[index+1]), u8_to_s8(self.data[index+2]), u8_to_s8(self.data[index+3]), self.data[index+4], self.data[index+5])
+    
+  def histokey(self):
+    index = math.ceil(K_COUNT / 2) + M_COUNT * 3 + G_COUNT * 6 # where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
+    b = bitarray.bitarray()
+    b.frombytes(bytes([self.data[index + H_COUNT], self.data[index + H_COUNT + 1]]))
+    h = []
+    for i in range(H_COUNT):
+      k = self.data[index + i]
+      if k != KEY_NONE: h.append((k, b[i]))
+    return h
 
   # TODO convenient mx,my,mw
   # TODO convenient axis/trigger with deadzone normalize

@@ -22,3 +22,4 @@ with Evt.Evt('/evt-libevdev') as evt:
     if evt.held(Evt.G0_SOUTH): print("G0_SOUTH held")
     if evt.held(Evt.M): print(evt.mouse())
     if evt.held(Evt.G): print(evt.axis_and_triggers())
+    if evt.held(Evt.H): print(evt.histokey())

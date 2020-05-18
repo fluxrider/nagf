@@ -103,6 +103,13 @@ for i in range(mapping_count):
     gamepad_abs[i][a] = 0
   for t in triggers:
     gamepad_abs[i][t] = 0
+histokey = []
+histokey_rank = []
+histokey_rank.extend(keys)
+histokey_rank.extend([None, None, None] * 3) # unsupported mouse buttons
+for i in range(G_COUNT):
+  for b in buttons:
+    histokey_rank.append(f'{b}_{i}')
 
 # thread that listens to a device
 def handle_device(path):
@@ -110,6 +117,7 @@ def handle_device(path):
   global should_quit
   global mapping
   global joystick_only
+  global histokey
   try:
     fd = open(path, 'rb')
     fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
@@ -135,6 +143,7 @@ def handle_device(path):
       try:
         for evt in device.events():
           if joystick_only and not path.endswith('-event-joystick'): continue
+          # TODO when switching to joystick only, other device should clear they held keys
           if mapping_mode:
             if evt.matches(libevdev.EV_KEY, 1) or evt.matches(libevdev.EV_ABS):
               # ignore weak abs
@@ -149,26 +158,32 @@ def handle_device(path):
           else:
             # buttons and keys
             if evt.matches(libevdev.EV_KEY):
-              index = evt.code.value # e.g. 103 for KEY_UP
-              mutex.acquire()
-              # pressed
-              if evt.value == 1:
-                if held[index] == 0: pressed[index] += 1
-                held[index] += 1
-                if index not in touched_key: touched_key[index] = 0
-                touched_key[index] += 1
-              # released
-              elif evt.value == 0:
-                held[index] -= 1
-                if index not in touched_key or touched_key[index] == 0:
-                  print("WARNING released by device, but never held by device")
-                else:
-                  touched_key[index] -= 1
-                if held[index] == 0: released[index] = True
-                if held[index] < 0:
-                  held[index] = 0
-                  print("WARNING held count went into negative")
-              mutex.release()
+              if evt.value == 1 or evt.value == 0:
+                try:
+                  rank = histokey_rank.index(evt.code)
+                  histokey.append((rank,evt.value))
+                except ValueError:
+                  pass
+                index = evt.code.value # e.g. 103 for KEY_UP
+                mutex.acquire()
+                # pressed
+                if evt.value == 1:
+                  if held[index] == 0: pressed[index] += 1
+                  held[index] += 1
+                  if index not in touched_key: touched_key[index] = 0
+                  touched_key[index] += 1
+                # released
+                elif evt.value == 0:
+                  held[index] -= 1
+                  if index not in touched_key or touched_key[index] == 0:
+                    print("WARNING released by device, but never held by device")
+                  else:
+                    touched_key[index] -= 1
+                  if held[index] == 0: released[index] = True
+                  if held[index] < 0:
+                    held[index] = 0
+                    print("WARNING held count went into negative")
+                mutex.release()
             # mouse x/y/wheel
             if evt.matches(libevdev.EV_REL):
               if evt.code.value in mouse:
@@ -182,25 +197,27 @@ def handle_device(path):
               for (k,i) in local_mapping[evt_type_code]:
                 if k in buttons:
                   if evt.matches(libevdev.EV_KEY):
-                    mutex.acquire()
-                    # pressed
-                    if evt.value == 1:
-                      if gamepad_held[i][k] == 0: gamepad_pressed[i][k] += 1
-                      gamepad_held[i][k] += 1
-                      if (i,k) not in touched_gkey: touched_gkey[(i,k)] = 0
-                      touched_gkey[(i,k)] += 1
-                    # released
-                    elif evt.value == 0:
-                      gamepad_held[i][k] -= 1
-                      if (i,k) not in touched_gkey or touched_gkey[(i,k)] == 0:
-                        print("WARNING released by device, but never held by device")
-                      else:
-                        touched_gkey[(i,k)] -= 1
-                      if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
-                      if gamepad_held[i][k] < 0:
-                        gamepad_held[i][k] = 0
-                        print("WARNING held count went into negative")
-                    mutex.release()
+                    if evt.value == 1 or evt.value == 0:
+                      histokey.append((histokey_rank.index(f'{k}_{i}'),evt.value))
+                      mutex.acquire()
+                      # pressed
+                      if evt.value == 1:
+                        if gamepad_held[i][k] == 0: gamepad_pressed[i][k] += 1
+                        gamepad_held[i][k] += 1
+                        if (i,k) not in touched_gkey: touched_gkey[(i,k)] = 0
+                        touched_gkey[(i,k)] += 1
+                      # released
+                      elif evt.value == 0:
+                        gamepad_held[i][k] -= 1
+                        if (i,k) not in touched_gkey or touched_gkey[(i,k)] == 0:
+                          print("WARNING released by device, but never held by device")
+                        else:
+                          touched_gkey[(i,k)] -= 1
+                        if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
+                        if gamepad_held[i][k] < 0:
+                          gamepad_held[i][k] = 0
+                          print("WARNING held count went into negative")
+                      mutex.release()
                   else:
                     print("WARNING unsupported mapping of non-key to gamepad key")
                 if k in triggers or k in axes:
@@ -292,6 +309,7 @@ def handle_client():
   global error
   global should_quit
   global joystick_only
+  global histokey
   try:
     with MsgMgr('/evt-libevdev', is_server=True) as server:
       while(True):
@@ -346,9 +364,17 @@ def handle_client():
         # missing virtual gamepads axis and triggers
         for i in range((G_COUNT - mapping_count)):
           data.extend([0] * G_AXIS_AND_TRIGGER_COUNT)
+        # 16 chronological key press/release
+        for i in range(16):
+          v = histokey[i][0] if i < len(histokey) else 255 # where 255 means KEY_NONE
+          data.extend(v.to_bytes(1, byteorder='little', signed=False)) 
+        histobits = bitarray.bitarray()
+        for i in range(16):
+          v = histokey[i][1] if i < len(histokey) else 0
+          histobits.append(v)
+        histokey = []
         mutex.release()
-        server.reply(bits.tobytes() + bytes(data))
-        # TODO event chronological history (for fighter style combo detection, and just plain old text typing)
+        server.reply(bits.tobytes() + bytes(data) + histobits.tobytes())
   except Exception as e:
     error = e
     should_quit.set()
@@ -357,7 +383,7 @@ if not mapping_mode:
   # wait
   should_quit.wait()
   if isinstance(error, Exception): traceback.print_tb(error.__traceback__)
-  if error: print(f'{error}')
+  if error: print(f'ERROR {error}')
 
 # mapping mode
 else:

@@ -111,6 +111,29 @@ for i in range(G_COUNT):
   for b in buttons:
     histokey_rank.append(f'{b}_{i}')
 
+def cleanup(mutex, touched_key, held, released, touched_gkey, gamepad_held, gamepad_released, touched_abs, gamepad_abs):
+  mutex.acquire()
+  for index in touched_key:
+    if touched_key[index] == 0: continue
+    held[index] -= touched_key[index]
+    touched_key[index] = 0
+    if held[index] == 0: released[index] = True
+    if held[index] < 0:
+      held[index] = 0
+      print("WARNING held count went into negative")
+  for i,k in touched_gkey:
+    if touched_gkey[(i,k)] == 0: continue
+    gamepad_held[i][k] -= touched_gkey[(i,k)]
+    touched_gkey[(i,k)] = 0
+    if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
+    if gamepad_held[i][k] < 0:
+      gamepad_held[i][k] = 0
+      print("WARNING held count went into negative")
+  for i, k in touched_abs: gamepad_abs[i][k] = 0
+  mutex.release()
+
+
+
 # thread that listens to a device
 def handle_device(path):
   global error
@@ -142,8 +165,10 @@ def handle_device(path):
     while True:
       try:
         for evt in device.events():
-          if joystick_only and not path.endswith('-event-joystick'): continue
-          # TODO when switching to joystick only, other device should clear they held keys
+          if joystick_only and not path.endswith('-event-joystick'):
+            # TODO clearing doesn't happen right away because we need an event from the device
+            cleanup(mutex, touched_key, held, released, touched_gkey, gamepad_held, gamepad_released, touched_abs, gamepad_abs)
+            continue
           if mapping_mode:
             if evt.matches(libevdev.EV_KEY, 1) or evt.matches(libevdev.EV_ABS):
               # ignore weak abs
@@ -236,25 +261,7 @@ def handle_device(path):
                   mutex.release()
       except libevdev.EventsDroppedException as e:
         print(f'{device.name} dropped some events.')
-        mutex.acquire()
-        for index in touched_key:
-          if touched_key[index] == 0: continue
-          held[index] -= touched_key[index]
-          touched_key[index] = 0
-          if held[index] == 0: released[index] = True
-          if held[index] < 0:
-            held[index] = 0
-            print("WARNING held count went into negative")
-        for i,k in touched_gkey:
-          if touched_gkey[(i,k)] == 0: continue
-          gamepad_held[i][k] -= touched_gkey[(i,k)]
-          touched_gkey[(i,k)] = 0
-          if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
-          if gamepad_held[i][k] < 0:
-            gamepad_held[i][k] = 0
-            print("WARNING held count went into negative")
-        for i, k in touched_abs: gamepad_abs[i][k] = 0
-        mutex.release()
+        cleanup(mutex, touched_key, held, released, touched_gkey, gamepad_held, gamepad_released, touched_abs, gamepad_abs)
         for evt in device.sync():
           print(f'sync {evt}')
   except Exception as e:
@@ -264,23 +271,7 @@ def handle_device(path):
       should_quit.set()
     else:
       print(f'Lost device {device.name}.')
-      mutex.acquire()
-      for index in touched_key:
-        if touched_key[index] == 0: continue
-        held[index] -= touched_key[index]
-        if held[index] == 0: released[index] = True
-        if held[index] < 0:
-          held[index] = 0
-          print("WARNING held count went into negative")
-      for i,k in touched_gkey:
-        if touched_gkey[(i,k)] == 0: continue
-        gamepad_held[i][k] -= touched_gkey[(i,k)]
-        if gamepad_held[i][k] == 0: gamepad_released[i][k] = True
-        if gamepad_held[i][k] < 0:
-          gamepad_held[i][k] = 0
-          print("WARNING held count went into negative")
-      for i, k in touched_abs: gamepad_abs[i][k] = 0
-      mutex.release()
+      cleanup(mutex, touched_key, held, released, touched_gkey, gamepad_held, gamepad_released, touched_abs, gamepad_abs)
 
 # listen to existing devices
 def is_of_interest(path):

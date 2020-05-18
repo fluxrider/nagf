@@ -36,6 +36,7 @@ buttons = ['R1', 'R2', 'R3', 'L1', 'L2', 'L3', 'START', 'HOME', 'SELECT', 'NORTH
 axes = ['LX', 'LY', 'RX', 'RY']
 triggers = ['LT', 'RT']
 mapping = []
+joystick_only = False
 
 for i in range(mapping_count):
   mapping.append({})
@@ -108,6 +109,7 @@ def handle_device(path):
   global error
   global should_quit
   global mapping
+  global joystick_only
   try:
     fd = open(path, 'rb')
     fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
@@ -132,6 +134,7 @@ def handle_device(path):
     while True:
       try:
         for evt in device.events():
+          if joystick_only and not path.endswith('-event-joystick'): continue
           if mapping_mode:
             if evt.matches(libevdev.EV_KEY, 1) or evt.matches(libevdev.EV_ABS):
               # ignore weak abs
@@ -235,7 +238,7 @@ def handle_device(path):
             print("WARNING held count went into negative")
         for i, k in touched_abs: gamepad_abs[i][k] = 0
         mutex.release()
-        for evt in ctx.sync():
+        for evt in device.sync():
           print(f'sync {evt}')
   except Exception as e:
     # lost device is not a fatal error
@@ -288,11 +291,14 @@ observer.start()
 def handle_client():
   global error
   global should_quit
+  global joystick_only
   try:
     with MsgMgr('/evt-libevdev', is_server=True) as server:
       while(True):
-        server.receive()
-        # TODO parse received data for 'no-focus-mode' and 'typing mode'
+        data = server.receive()
+        command = "none"
+        if len(data) > 0: command = bytearray(data).decode()
+        joystick_only = command == 'no-focus-mode'
         bits = bitarray.bitarray()
         mutex.acquire()
         # keys and buttons (but not gamepad's)

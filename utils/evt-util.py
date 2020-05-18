@@ -172,8 +172,8 @@ class Evt:
     self.client = MsgMgr(name)
     self.data = None
 
-  def poll(self):
-    self.data = self.client.send([])
+  def poll(self, command=''):
+    self.data = self.client.send(command.encode())
 
   def held(self, key):
     return ((self._get_half_byte(key) >> 3) & 1) != 0

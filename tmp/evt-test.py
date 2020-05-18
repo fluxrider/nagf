@@ -7,9 +7,13 @@ import importlib
 Evt = importlib.import_module('utils.evt-util')
 
 with Evt.Evt('/evt-libevdev') as evt:
+  command = ''
   while True:
-    evt.poll()
+    evt.poll(command)
     if evt.pressed(Evt.UP): print("UP just pressed")
+    if evt.released(Evt.F):
+      print('Going in no focus mode')
+      command = 'no-focus-mode'
     if evt.held(Evt.P): print("P held")
     if evt.released(Evt.ESC):
       print("ESC released")

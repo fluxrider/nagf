@@ -1,5 +1,5 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// gcc -o gfx-x11-cairo gfx-x11-cairo.c -Wall $(pkg-config --libs --cflags x11) -lpthread
+// gcc -o gfx-x11-cairo gfx-x11-cairo.c -Wall $(pkg-config --libs --cflags x11 cairo) -lpthread
 #include <stdio.h>
 #include <stdlib.h>
 #include <X11/Xlib.h>
@@ -60,12 +60,12 @@ int main(int argc, char** argv) {
   XSetErrorHandler(x_error_handler);
   Display * display = XOpenDisplay(NULL); if(display == NULL) { printf("XOpenDisplay\n"); exit(EXIT_FAILURE); }
   Drawable window = XCreateSimpleWindow(display, DefaultRootWindow(display), 0, 0, W, H, 0, 0, 0);
-  XSelectInput(display, window, ButtonPressMask | KeyPressMask | KeyReleaseMask);
+  XSelectInput(display, window, FocusChangeMask);
   XMapWindow(display, window);
   cairo_surface_t* surface = cairo_xlib_surface_create(display, window, DefaultVisual(display, DefaultScreen(display)), W, H);
   cairo_t* g = cairo_create(surface);
 
-  // create and in another thread read its messages
+  // create fifo and in another thread read its messages
   const char * server_fifo_path = "gfx-x11-cairo.fifo";
   if(unlink(server_fifo_path) == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
   if(mkfifo(server_fifo_path, S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
@@ -77,6 +77,7 @@ int main(int argc, char** argv) {
   pthread_t fifo_thread;
   pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
 
+  // main loop
   int frame_count = 0;
   uint64_t t0 = currentTimeMillis();
   while(t.running) {
@@ -85,12 +86,11 @@ int main(int argc, char** argv) {
       XEvent event;
       XNextEvent(display, &event);
       switch(event.type) {
-        // keyboard
-        case KeyRelease:
+        case FocusIn:
+          printf("FocusIn\n");
           break;
-        // mouse
-        case ButtonPress:
-          printf("You pressed a button at (%d,%d)\n", event.xbutton.x, event.xbutton.y);
+        case FocusOut:
+          printf("FocusOut\n");
           break;
       }
     }
@@ -102,7 +102,7 @@ int main(int argc, char** argv) {
     t0 = t1;
     // fps
     frame_count++;
-    printf("%d: %f\n", frame_count, 1 / delta_time);
+    //printf("%d: %f\n", frame_count, 1 / delta_time);
 
     // cairo clear
     cairo_set_source_rgb(g, 1, 1, 1);

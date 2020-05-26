@@ -1,5 +1,6 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// gcc -o gfx-x11-cairo gfx-x11-cairo.c -Wall $(pkg-config --libs --cflags x11 cairo) -lpthread
+// javac gfx-swing
+// java gfx_swing
 
 import java.io.*;
 import java.awt.*;

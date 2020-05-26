@@ -1,1 +1,3 @@
 *.so
+example_client
+example_server

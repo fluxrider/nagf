@@ -1,38 +1,38 @@
 Launch C server
 Launch C client (ignore this one)
-1385893 send/receive/reply in 30 seconds (46196.433333 per second)
+2410738 send/receive/reply in 30 seconds (80357.933333 per second)
 Launch C client
-1853384 send/receive/reply in 30 seconds (61779.466667 per second)
+2515372 send/receive/reply in 30 seconds (83845.733333 per second)
 Launch python client (cost of implementation overhead)
-1068945 send/receive/reply in 30 seconds (35631.5 per second)
+1019833 send/receive/reply in 30 seconds (33994.433333333334 per second)
 Launch python client with bigmsg (cost of implementation memcpy overhead)
-20726 send/receive/reply in 30 seconds (690.8666666666667 per second)
+65446 send/receive/reply in 30 seconds (2181.5333333333333 per second)
 Launch C client with mutex (cost of locks by myself)
-1339607 send/receive/reply in 30 seconds (44653.566667 per second)
+2457834 send/receive/reply in 30 seconds (81927.800000 per second)
 Launch C client with mutex/bigmsg (cost of memcpy)
-1275700 send/receive/reply in 30 seconds (42523.333333 per second)
+1734451 send/receive/reply in 30 seconds (57815.033333 per second)
 Launch 3 C clients with mutex (cost of locks for real)
-785494 send/receive/reply in 30 seconds (26183.133333 per second)
-182558 send/receive/reply in 30 seconds (6085.266667 per second)
-177633 send/receive/reply in 30 seconds (5921.100000 per second)
-srr_receive: srr_shm_wait:124: Connection timed out
+461575 send/receive/reply in 30 seconds (15385.833333 per second)
+299957 send/receive/reply in 30 seconds (9998.566667 per second)
+346213 send/receive/reply in 30 seconds (11540.433333 per second)
+srr_receive: srr_shm_wait:123: Connection timed out
 Launch python server
 Launch C client (ignore this one)
-1416417 send/receive/reply in 30 seconds (47213.900000 per second)
+1175344 send/receive/reply in 30 seconds (39178.133333 per second)
 Launch C client
-1547756 send/receive/reply in 30 seconds (51591.866667 per second)
+1321397 send/receive/reply in 30 seconds (44046.566667 per second)
 Launch python client (cost of implementation overhead)
-905018 send/receive/reply in 30 seconds (30167.266666666666 per second)
+609635 send/receive/reply in 30 seconds (20321.166666666668 per second)
 Launch python client with bigmsg (cost of implementation memcpy overhead)
-13232 send/receive/reply in 30 seconds (441.06666666666666 per second)
+21493 send/receive/reply in 30 seconds (716.4333333333333 per second)
 Launch C client with mutex (cost of locks by myself)
-1322197 send/receive/reply in 30 seconds (44073.233333 per second)
+1434739 send/receive/reply in 30 seconds (47824.633333 per second)
 Launch C client with mutex/bigmsg (cost of memcpy)
-163202 send/receive/reply in 30 seconds (5440.066667 per second)
+161413 send/receive/reply in 30 seconds (5380.433333 per second)
 Launch 3 C clients with mutex (cost of locks for real)
-340636 send/receive/reply in 30 seconds (11354.533333 per second)
-302106 send/receive/reply in 30 seconds (10070.200000 per second)
-299108 send/receive/reply in 30 seconds (9970.266667 per second)
+194993 send/receive/reply in 30 seconds (6499.766667 per second)
+569134 send/receive/reply in 30 seconds (18971.133333 per second)
+312554 send/receive/reply in 30 seconds (10418.466667 per second)
 Linux fanatic 5.6.13-arch1-1 #1 SMP PREEMPT Thu, 14 May 2020 06:52:53 +0000 x86_64 GNU/Linux
 processor	: 0
 vendor_id	: AuthenticAMD
@@ -41,7 +41,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1405.682
+cpu MHz		: 1405.878
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -69,7 +69,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1401.849
+cpu MHz		: 1405.975
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -97,7 +97,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1842.319
+cpu MHz		: 1986.037
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -125,7 +125,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 2089.722
+cpu MHz		: 1470.336
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -153,7 +153,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1687.889
+cpu MHz		: 1403.835
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -181,7 +181,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1691.403
+cpu MHz		: 1402.333
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -209,7 +209,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1502.161
+cpu MHz		: 2015.659
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8
@@ -237,7 +237,7 @@ model		: 2
 model name	: AMD FX(tm)-8320 Eight-Core Processor
 stepping	: 0
 microcode	: 0x6000852
-cpu MHz		: 1899.919
+cpu MHz		: 1434.535
 cache size	: 2048 KB
 physical id	: 0
 siblings	: 8

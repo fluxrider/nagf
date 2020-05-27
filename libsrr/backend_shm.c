@@ -1,5 +1,5 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// gcc -fPIC -shared -o msglib.so msglib.c -lrt -pthread
+// gcc -fPIC -shared -o libsrrshm.so backend_shm.c -lrt -pthread
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -26,7 +26,7 @@ struct opaque_data {
   char name[];
 };
 
-void * msglib_connect(const char * name, size_t length, bool is_server, int * error, int * line) {
+void * srr_shm_connect(const char * name, size_t length, bool is_server, int * error, int * line) {
   *error = 0;
   int fd = shm_open(name, O_RDWR | (is_server? O_CREAT : 0), is_server? (S_IRUSR | S_IWUSR) : 0); if(fd == -1) { *line = __LINE__; *error = errno; return strerror(errno); }
   if(is_server) if(ftruncate(fd, length) == -1) { *line = __LINE__; *error = errno; return strerror(errno); }
@@ -53,12 +53,12 @@ void * msglib_connect(const char * name, size_t length, bool is_server, int * er
   return data;
 }
 
-uint8_t * msglib_get_mem(void * opaque) {
+uint8_t * srr_shm_get_mem(void * opaque) {
   struct opaque_data * data = opaque;
   return data->msg;
 }
 
-const char * msglib_disconnect(void * opaque, int * line) {
+const char * srr_shm_disconnect(void * opaque, int * line) {
   struct opaque_data * data = opaque;
   if(data->is_server) {
     if(pthread_mutex_destroy(data->client_mutex)) { *line = __LINE__; return "pthread_mutex_destroy"; }
@@ -72,21 +72,21 @@ const char * msglib_disconnect(void * opaque, int * line) {
   return NULL;
 }
 
-const char * msglib_lock(void * opaque, int * line) {
+const char * srr_shm_lock(void * opaque, int * line) {
   struct opaque_data * data = opaque;
   if(data->is_server) return "servers should not tamper with the client mutex";
   if(pthread_mutex_lock(data->client_mutex)) return "pthread_mutex_lock";
   return NULL;
 }
 
-const char * msglib_unlock(void * opaque, int * line) {
+const char * srr_shm_unlock(void * opaque, int * line) {
   struct opaque_data * data = opaque;
   if(data->is_server) { *line = __LINE__; return "servers should not tamper with the client mutex"; }
   if(pthread_mutex_unlock(data->client_mutex)) { *line = __LINE__; return "pthread_mutex_unlock"; }
   return NULL;
 }
 
-const char * msglib_post(void * opaque, int * line) {
+const char * srr_shm_post(void * opaque, int * line) {
   struct opaque_data * data = opaque;
   if(sem_post(data->notify_other) == -1) { *line = __LINE__; return strerror(errno); }
   return NULL;
@@ -114,7 +114,7 @@ void my_copy_of_set_normalized_timespec_from_linux_source(struct timespec *ts, t
 	ts->tv_sec = sec;
 	ts->tv_nsec = nsec;
 }
-const char * msglib_wait(void * opaque, double s, int * line) {
+const char * srr_shm_wait(void * opaque, double s, int * line) {
   struct opaque_data * data = opaque;
   if(s == 0) if(sem_wait(data->notify_me) == -1) { *line = __LINE__; return strerror(errno); }
   struct timespec timeout;

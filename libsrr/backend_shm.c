@@ -27,6 +27,7 @@ struct opaque_data {
 };
 
 void * srr_shm_connect(const char * name, size_t length, bool is_server, int * error, int * line) {
+  length += sizeof(sem_t) * 2 + sizeof(pthread_mutex_t);
   *error = 0;
   int fd = shm_open(name, O_RDWR | (is_server? O_CREAT : 0), is_server? (S_IRUSR | S_IWUSR) : 0); if(fd == -1) { *line = __LINE__; *error = errno; return strerror(errno); }
   if(is_server) if(ftruncate(fd, length) == -1) { *line = __LINE__; *error = errno; return strerror(errno); }

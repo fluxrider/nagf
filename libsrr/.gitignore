@@ -1,3 +1,5 @@
 *.so
 example_client
 example_server
+benchmark_client
+benchmark_server

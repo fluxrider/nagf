@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -e
 gcc -fPIC -shared -o libsrr.so srr.c backend_shm.c -lrt -pthread
-gcc -fPIC -shared -o libsrrshm.so backend_shm.c -lrt -pthread
 gcc -o benchmark_server benchmark_server.c -L. -lsrr
 gcc -o benchmark_client benchmark_client.c -L. -lsrr
 

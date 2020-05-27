@@ -1,5 +1,4 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// gcc -fPIC -shared -o libsrrshm.so backend_shm.c -lrt -pthread
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>

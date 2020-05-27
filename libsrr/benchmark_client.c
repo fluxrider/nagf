@@ -20,7 +20,7 @@ void main(void) {
   // connect
   const char * error;
   struct srr client;
-  error = srr_init(&client, "/benchmark-srr-c", 8192, false, false, 2); if(error) { printf("srr_init: %s\n", error); exit(EXIT_FAILURE); }
+  error = srr_init(&client, "/benchmark-srr", 8192, false, false, 2); if(error) { printf("srr_init: %s\n", error); exit(EXIT_FAILURE); }
   struct srr_direct * mem = srr_direct(&client);
 
   // send random ints for 2 seconds

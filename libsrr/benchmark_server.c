@@ -10,7 +10,7 @@ void main(void) {
   // connect
   const char * error;
   struct srr server;
-  error = srr_init(&server, "/benchmark-srr-c", 8192, true, false, 2); if(error) { printf("srr_init: %s\n", error); exit(EXIT_FAILURE); }
+  error = srr_init(&server, "/benchmark-srr", 8192, true, false, 2); if(error) { printf("srr_init: %s\n", error); exit(EXIT_FAILURE); }
   struct srr_direct * mem = srr_direct(&server);
 
   // receive loop

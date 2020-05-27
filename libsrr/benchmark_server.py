@@ -9,6 +9,6 @@ import sys
 with Srr('/benchmark-srr', is_server=True, timeout=2) as server:
   while True:
     data = server.receive()
-    x = int.from_bytes(data, byteorder=sys.byteorder, signed=False)
+    x = int.from_bytes(data[:4], byteorder=sys.byteorder, signed=False)
     x += 5
     server.reply(x.to_bytes(4, byteorder=sys.byteorder, signed=False))

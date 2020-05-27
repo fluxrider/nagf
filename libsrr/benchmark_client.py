@@ -8,13 +8,18 @@ import time
 import random
 
 with Srr('/benchmark-srr') as client:
+  seconds = int(sys.argv[1])
+  bigmsg = len(sys.argv) >= 3
+  bigdata = bytes([0]*(8192-4))
   t0 = time.time()
   count = 0
-  while time.time() < t0 + 5:
+  while time.time() < t0 + seconds:
     x = random.randrange(1000000)
-    data = client.send(x.to_bytes(4, byteorder=sys.byteorder, signed=False))
+    data = x.to_bytes(4, byteorder=sys.byteorder, signed=False)
+    if bigmsg: data = data + bigdata
+    data = client.send(data)
     if int.from_bytes(data, byteorder=sys.byteorder, signed=False) != x + 5:
       print('bad answer')
       break
     count += 1
-  print(f'{count} send/receive/reply in 5 seconds ({count / 5.0} per second)')
+  print(f'{count} send/receive/reply in {seconds} seconds ({count / seconds} per second)')

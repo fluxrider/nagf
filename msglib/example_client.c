@@ -22,5 +22,3 @@ void main(void) {
   // disconnect
   error = msgmgr_disconnect(&client); if(error) { printf("msgmgr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
 }
-
-

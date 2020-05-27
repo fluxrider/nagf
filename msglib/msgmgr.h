@@ -26,4 +26,4 @@ const char * msgmgr_send_dx(struct msgmgr * self, uint8_t * data, size_t length,
 const char * msgmgr_send(struct msgmgr * self, size_t length);
 struct msgmgr_direct * msgmgr_direct(struct msgmgr * self);
 const char * msgmgr_receive(struct msgmgr * self);
-const char * msgmgr_reply(struct msgmgr * self);
+const char * msgmgr_reply(struct msgmgr * self, size_t length);

@@ -84,8 +84,9 @@ const char * msgmgr_receive(struct msgmgr * self) {
   return NULL;
 }
 
-const char * msgmgr_reply(struct msgmgr * self) {
+const char * msgmgr_reply(struct msgmgr * self, size_t length) {
   if(!self->is_server) return "msgmgr_reply is for servers, not clients";
+  *(uint32_t *)self->msg = (uint32_t) length;
   int line;
   const char * error = msglib_post(self->msgmgr, &line);
   if(error) { snprintf(self->error_msg, CAP, "msglib_post:%d: %s", line, error); return self->error_msg; }

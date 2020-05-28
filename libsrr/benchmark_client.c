@@ -40,7 +40,7 @@ void main(int argc, char * argv[]) {
     if(*(uint32_t*)mem->msg != x + 5) { printf("bad answer: %u != %u\n", *(uint32_t*)mem->msg, x + 5); exit(EXIT_FAILURE); }
     count++;
   } while(currentTimeMillis() < t0 + seconds * 1000);
-  printf("%" PRIu64 " send/receive/reply in %d seconds (%f per second)\n", count, seconds, count / (double)seconds);
+  printf("%f\n", count / (double)seconds);
   
   // disconnect
   error = srr_disconnect(&client); if(error) { printf("srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }

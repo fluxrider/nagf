@@ -28,4 +28,4 @@ with Srr('/benchmark-srr', length=8192) as client:
         print('bad answer')
         break
     count += 1
-  print(f'{count} send/receive/reply in {seconds} seconds ({count / seconds} per second)')
+  print(f'{count / seconds}')

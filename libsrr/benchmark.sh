@@ -11,18 +11,20 @@ echo 'Launch C server'
 LD_LIBRARY_PATH=. ./benchmark_server &
 server_pid=$!
 sleep .4
-echo 'Launch C client (ignore this one)'
-LD_LIBRARY_PATH=. ./benchmark_client $duration
 echo 'Launch C client'
 LD_LIBRARY_PATH=. ./benchmark_client $duration
 echo 'Launch python client (cost of implementation overhead)'
 LD_LIBRARY_PATH=. python -B benchmark_client.py $duration
-echo 'Launch python client with bigmsg (cost of implementation memcpy overhead)'
+echo 'Launch python client with bigmsg (cost of implementation overhead)'
 LD_LIBRARY_PATH=. python -B benchmark_client.py $duration bigmsg
 echo 'Launch C client with mutex (cost of locks by myself)'
 LD_LIBRARY_PATH=. ./benchmark_client $duration multi
 echo 'Launch C client with mutex/bigmsg (cost of memcpy)'
 LD_LIBRARY_PATH=. ./benchmark_client $duration multi bigmsg
+echo 'Launch python client with mutex (cost of implementation memcpy overhead)'
+LD_LIBRARY_PATH=. python -B benchmark_client.py $duration multi
+echo 'Launch python client with mutex/bigmsg (cost of implementation memcpy overhead)'
+LD_LIBRARY_PATH=. python -B benchmark_client.py $duration multi bigmsg
 echo 'Launch 3 C clients with mutex (cost of locks for real)'
 LD_LIBRARY_PATH=. ./benchmark_client $duration multi &
 client_pid=$!
@@ -40,18 +42,20 @@ echo 'Launch python server'
 LD_LIBRARY_PATH=. python -B benchmark_server.py &
 server_pid=$!
 sleep .4
-echo 'Launch C client (ignore this one)'
-LD_LIBRARY_PATH=. ./benchmark_client $duration
 echo 'Launch C client'
 LD_LIBRARY_PATH=. ./benchmark_client $duration
 echo 'Launch python client (cost of implementation overhead)'
 LD_LIBRARY_PATH=. python -B benchmark_client.py $duration
-echo 'Launch python client with bigmsg (cost of implementation memcpy overhead)'
+echo 'Launch python client with bigmsg (cost of implementation overhead)'
 LD_LIBRARY_PATH=. python -B benchmark_client.py $duration bigmsg
 echo 'Launch C client with mutex (cost of locks by myself)'
 LD_LIBRARY_PATH=. ./benchmark_client $duration multi
 echo 'Launch C client with mutex/bigmsg (cost of memcpy)'
 LD_LIBRARY_PATH=. ./benchmark_client $duration multi bigmsg
+echo 'Launch python client with mutex (cost of implementation memcpy overhead)'
+LD_LIBRARY_PATH=. python -B benchmark_client.py $duration multi
+echo 'Launch python client with mutex/bigmsg (cost of implementation memcpy overhead)'
+LD_LIBRARY_PATH=. python -B benchmark_client.py $duration multi bigmsg
 echo 'Launch 3 C clients with mutex (cost of locks for real)'
 LD_LIBRARY_PATH=. ./benchmark_client $duration multi &
 client_pid=$!
@@ -70,4 +74,4 @@ rm benchmark_server
 
 # computer details
 uname -a
-cat /proc/cpuinfo
+#cat /proc/cpuinfo

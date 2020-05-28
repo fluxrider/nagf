@@ -33,37 +33,37 @@ class Srr:
     if error: raise RuntimeError(f'srr_init: {error.decode()}')
     so.srr_direct.restype = ctypes.POINTER(srr_direct)
     self.srr_direct = so.srr_direct(ctypes.byref(self.srr))
+    send_dx_buffer_type = ctypes.c_ubyte * length
+    self.send_dx_buffer = send_dx_buffer_type()
 
   def disconnect(self):
     error = so.srr_disconnect(ctypes.byref(self.srr))
     if error: raise RuntimeError(f'srr_disconnect: {error.decode()}')
 
   # client interface (i.e. send a message and wait for a reply from the server)
-  def send(self, data):
-    self.srr_direct.contents.msg[:len(data)] = data # TODO just take length arg, to avoid the copy
-    error = so.srr_send(ctypes.byref(self.srr), len(data))
+  def send(self, length):
+    # it is assumed that self.srr_direct.contents.msg[:length] was filled by caller
+    error = so.srr_send(ctypes.byref(self.srr), length)
     if error: raise RuntimeError(f'srr_send: {error.decode()}')
-    return self.srr_direct.contents.msg[:self.srr_direct.contents.length]
-    # TODO return the srr_direct obj itself to avoid the copy
+    # caller can now read self.srr_direct.contents.msg[:self.srr_direct.contents.length]
 
-  def send_dx(self, data):
-    length = ctypes.c_uint()
-    buffer = ctypes.c_ubyte * self.srr.length
-    error = so.srr_send_dx(ctypes.byref(self.srr), bytes(data), len(data), ctypes.pointer(buffer), ctypes.pointer(length))
+  def send_dx(self, length):
+    # it is assumed that self.send_dx_buffer[:length] was filled by caller
+    retval_length = ctypes.c_uint()
+    error = so.srr_send_dx(ctypes.byref(self.srr), self.send_dx_buffer, length, self.send_dx_buffer, ctypes.pointer(retval_length))
     if error: raise RuntimeError(f'srr_send_dx: {error.decode()}')
-    return buffer[:length]
-    # TODO return buffer/length tuple to avoid copying the buffer?
+    return int.from_bytes(retval_length, byteorder=sys.byteorder, signed=False)
+    # caller can now read self.send_dx_buffer[:retval_length]
 
   # server interface (i.e. receive a message from the client, process, then reply)
   def receive(self):
     error = so.srr_receive(ctypes.byref(self.srr))
     if error: raise RuntimeError(f'srr_receive: {error.decode()}')
-    return self.srr_direct.contents.msg[:self.srr_direct.contents.length]
-    # TODO return the srr_direct obj itself to avoid the copy
+    # caller can now read self.srr_direct.contents.msg[:self.srr_direct.contents.length]
 
-  def reply(self, data):
-    self.srr_direct.contents.msg[:len(data)] = data # TODO just take length arg, to avoid the copy
-    error = so.srr_reply(ctypes.byref(self.srr), len(data))
+  def reply(self, length):
+    # it is assumed that self.srr_direct.contents.msg[:length] was filled by caller
+    error = so.srr_reply(ctypes.byref(self.srr), length)
     if error: raise RuntimeError(f'srr_reply: {error.decode()}')
 
   # context managers interface

@@ -1,0 +1,5 @@
+ANNOYANCE
+
+- server and client must agree on a message capacity length (which I mean to be the length of the message, not the mmap), so reading the size of /dev/shm/fdfsd is not good.
+
+- the shared memory filename is visible, and centralized in /dev/shm, making tampering a possible problem

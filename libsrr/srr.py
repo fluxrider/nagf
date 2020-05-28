@@ -31,40 +31,58 @@ class Srr:
     self.srr = srr()
     error = so.srr_init(ctypes.byref(self.srr), name.encode(), length, is_server, use_multi_client_lock, ctypes.c_double(timeout))
     if error: raise RuntimeError(f'srr_init: {error.decode()}')
-    so.srr_direct.restype = ctypes.POINTER(srr_direct)
-    self.srr_direct = so.srr_direct(ctypes.byref(self.srr))
-    send_dx_buffer_type = ctypes.c_ubyte * length
-    self.send_dx_buffer = send_dx_buffer_type()
+    if is_server or not use_multi_client_lock:
+      self.direct = True
+      so.srr_direct.restype = ctypes.POINTER(srr_direct)
+      self.srr_direct = so.srr_direct(ctypes.byref(self.srr))
+      self.msg = self.srr_direct.contents.msg
+    else:
+      self.direct = False
+      send_dx_buffer_type = ctypes.c_ubyte * length
+      self.send_dx_buffer = send_dx_buffer_type()
+      self.msg = self.send_dx_buffer
 
   def disconnect(self):
     error = so.srr_disconnect(ctypes.byref(self.srr))
     if error: raise RuntimeError(f'srr_disconnect: {error.decode()}')
 
-  # client interface (i.e. send a message and wait for a reply from the server)
-  def send(self, length):
-    # it is assumed that self.srr_direct.contents.msg[:length] was filled by caller
-    error = so.srr_send(ctypes.byref(self.srr), length)
-    if error: raise RuntimeError(f'srr_send: {error.decode()}')
-    # caller can now read self.srr_direct.contents.msg[:self.srr_direct.contents.length]
+  # low level client interface (i.e. send a message and wait for a reply from the server)
+  def _send(self, length):
+    # it is assumed that self.msg[:length] was filled by caller
+    if self.direct:
+      error = so.srr_send(ctypes.byref(self.srr), length)
+      if error: raise RuntimeError(f'srr_send: {error.decode()}')
+      return self.srr_direct.contents.length
+    else:
+      retval_length = ctypes.c_uint()
+      error = so.srr_send_dx(ctypes.byref(self.srr), self.send_dx_buffer, length, self.send_dx_buffer, ctypes.pointer(retval_length))
+      if error: raise RuntimeError(f'srr_send_dx: {error.decode()}')
+      return int.from_bytes(retval_length, byteorder=sys.byteorder, signed=False)
+    # caller can now read self.msg[:length]
 
-  def send_dx(self, length):
-    # it is assumed that self.send_dx_buffer[:length] was filled by caller
-    retval_length = ctypes.c_uint()
-    error = so.srr_send_dx(ctypes.byref(self.srr), self.send_dx_buffer, length, self.send_dx_buffer, ctypes.pointer(retval_length))
-    if error: raise RuntimeError(f'srr_send_dx: {error.decode()}')
-    return int.from_bytes(retval_length, byteorder=sys.byteorder, signed=False)
-    # caller can now read self.send_dx_buffer[:retval_length]
-
-  # server interface (i.e. receive a message from the client, process, then reply)
-  def receive(self):
+  # low level server interface (i.e. receive a message from the client, process, then reply)
+  def _receive(self):
     error = so.srr_receive(ctypes.byref(self.srr))
     if error: raise RuntimeError(f'srr_receive: {error.decode()}')
-    # caller can now read self.srr_direct.contents.msg[:self.srr_direct.contents.length]
+    return self.srr_direct.contents.length
+    # caller can now read self.msg[:length]
 
-  def reply(self, length):
-    # it is assumed that self.srr_direct.contents.msg[:length] was filled by caller
+  def _reply(self, length):
+    # it is assumed that self.msg[:length] was filled by caller
     error = so.srr_reply(ctypes.byref(self.srr), length)
     if error: raise RuntimeError(f'srr_reply: {error.decode()}')
+    
+  # high level interface
+  def send(self, data):
+    self.msg[:len(data)] = data
+    return self.msg[:self._send(len(data))]
+
+  def receive(self):
+    return self.msg[:self._receive()]
+
+  def reply(self, data):
+    self.msg[:len(data)] = data
+    self._reply(len(data))
 
   # context managers interface
   def __enter__(self):

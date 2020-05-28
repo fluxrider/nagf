@@ -5,12 +5,7 @@
 from srr import Srr
 
 with Srr('/example-srr') as client:
-  # send
-  data = "hello".encode()
-  client.srr_direct.contents.msg[:len(data)] = data
-  client.send(len(data))
-  
-  # handle reply
-  print(client.srr_direct.contents.length)
-  print(client.srr_direct.contents.msg)
-  print(bytearray(client.srr_direct.contents.msg[:client.srr_direct.contents.length]).decode())
+  reply = client.send("hello".encode())
+  print(len(reply))
+  print(reply)
+  print(bytearray(reply).decode())

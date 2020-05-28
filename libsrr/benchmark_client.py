@@ -7,25 +7,24 @@ import sys
 import time
 import random
 
-with Srr('/benchmark-srr', length=8192) as client:
-  seconds = int(sys.argv[1])
-  bigmsg = 'bigmsg' in sys.argv
-  multi = 'multi' in sys.argv
+seconds = int(sys.argv[1])
+bigmsg = 'bigmsg' in sys.argv
+multi = 'multi' in sys.argv
+
+with Srr('/benchmark-srr', length=8192, use_multi_client_lock=multi) as client:
   t0 = time.time()
   count = 0
   while time.time() < t0 + seconds:
     x = random.randrange(1000000)
-    if multi:
-      client.send_dx_buffer[:4] = x.to_bytes(4, byteorder=sys.byteorder, signed=False)
-      length = client.send_dx(4)
-      if int.from_bytes(client.send_dx_buffer[:length], byteorder=sys.byteorder, signed=False) != x + 5:
-        print('bad answer')
-        break
+    data = x.to_bytes(4, byteorder=sys.byteorder, signed=False)
+    if bigmsg:
+      client.msg[:4] = data
+      length = client._send(8192)
+      reply = client.msg[:length]
     else:
-      client.srr_direct.contents.msg[:4] = x.to_bytes(4, byteorder=sys.byteorder, signed=False)
-      client.send(8192 if bigmsg else 4)
-      if int.from_bytes(client.srr_direct.contents.msg[:4], byteorder=sys.byteorder, signed=False) != x + 5:
-        print('bad answer')
-        break
+      reply = client.send(data)
+    if int.from_bytes(reply, byteorder=sys.byteorder, signed=False) != x + 5:
+      print('bad answer')
+      break
     count += 1
   print(f'{count / seconds}')

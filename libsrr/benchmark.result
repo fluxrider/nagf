@@ -1,28 +1,28 @@
-Each test will take 10 seconds.
+Each test will take 2 seconds.
 The higher numbers the better.
 Launch C server
-C                       : 45037.800000
-python                  : 41338.4
-C      w/ mutex         : 51317.700000
-python w/ mutex         : 41154.9
-C      w/ mutex, bigmsg : 38764.100000
-python w/ mutex, bigmsg : 35001.7
-python w/ bigmsg        : 35051.2
-3 x C  w/ mutex         : 14992.600000
-15439.200000
-7259.700000
-srr_receive: srr_shm_wait:123: Connection timed out
+C                       : 44507.500000
+python                  : 42450.0
+C      w/ mutex         : 43036.000000
+python w/ mutex         : 34410.5
+C      w/ mutex, bigmsg : 43364.500000
+python w/ mutex, bigmsg : 36260.0
+python w/ bigmsg        : 36272.5
+3 x C  w/ mutex         : 35553.000000
+856.500000
+2808.500000
+srr_receive: srr_shm_wait:125: Connection timed out
 Launch python server
-C                       : 41738.700000
-python                  : 28990.7
-C      w/ mutex         : 38459.000000
-python w/ mutex         : 20108.5
-C      w/ mutex, bigmsg : 36001.400000
-python w/ mutex, bigmsg : 27832.4
-python w/ bigmsg        : 25954.9
-3 x C  w/ mutex         : 10414.400000
-7247.800000
-16624.900000
+C                       : 45005.500000
+python                  : 20283.0
+C      w/ mutex         : 50045.500000
+python w/ mutex         : 26923.5
+C      w/ mutex, bigmsg : 5546.500000
+python w/ mutex, bigmsg : 4846.0
+python w/ bigmsg        : 4967.5
+3 x C  w/ mutex         : 12375.500000
+21040.500000
+7390.000000
 Linux fanatic 5.6.13-arch1-1 #1 SMP PREEMPT Thu, 14 May 2020 06:52:53 +0000 x86_64 GNU/Linux
 Architecture:                    x86_64
 CPU op-mode(s):                  32-bit, 64-bit
@@ -40,7 +40,7 @@ Model:                           2
 Model name:                      AMD FX(tm)-8320 Eight-Core Processor
 Stepping:                        0
 Frequency boost:                 enabled
-CPU MHz:                         1406.131
+CPU MHz:                         1405.136
 CPU max MHz:                     3500.0000
 CPU min MHz:                     1400.0000
 BogoMIPS:                        7034.26

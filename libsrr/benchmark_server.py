@@ -8,8 +8,7 @@ import sys
 
 with Srr('/benchmark-srr', is_server=True, timeout=2, length=8192) as server:
   while True:
-    server.receive()
-    x = int.from_bytes(server.srr_direct.contents.msg[:4], byteorder=sys.byteorder, signed=False)
+    data = server.receive()
+    x = int.from_bytes(data[:4], byteorder=sys.byteorder, signed=False)
     x += 5
-    server.srr_direct.contents.msg[:4] = x.to_bytes(4, byteorder=sys.byteorder, signed=False)
-    server.reply(4)
+    server.reply(x.to_bytes(4, byteorder=sys.byteorder, signed=False))

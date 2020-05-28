@@ -6,15 +6,10 @@ from srr import Srr
 import time
 
 with Srr('/example-srr', is_server=True) as server:
-  # receive
-  server.receive()
-  print(server.srr_direct.contents.length)
-  print(server.srr_direct.contents.msg)
-  print(bytearray(server.srr_direct.contents.msg[:server.srr_direct.contents.length]).decode())
-
-  # reply
-  data = "whatever".encode()
-  server.srr_direct.contents.msg[:len(data)] = data
-  server.reply(len(data))
+  data = server.receive()
+  print(len(data))
+  print(data)
+  print(bytearray(data).decode())
+  server.reply("whatever".encode())
 
   time.sleep(1) # give client some time before destroying channel

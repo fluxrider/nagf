@@ -4,7 +4,7 @@ gcc -fPIC -shared -o libsrr.so srr.c backend_shm.c -lrt -pthread
 gcc -o benchmark_server benchmark_server.c -L. -lsrr
 gcc -o benchmark_client benchmark_client.c -L. -lsrr
 
-duration=10
+duration=2
 echo 'Each test will take' $duration 'seconds.'
 echo 'The higher numbers the better.'
 

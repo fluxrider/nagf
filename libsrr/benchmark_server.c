@@ -15,7 +15,7 @@ void main(void) {
 
   // receive loop
   while(1) {
-    error = srr_receive(&server); if(error) { printf("srr_receive: %s\n", error); exit(EXIT_FAILURE); }
+    error = srr_receive(&server); if(error) { printf("srr_receive: %s\n", error); break; }
     if(mem->length < sizeof(uint32_t)) printf("unexpected message size: %u\n", mem->length);
     else {
       // return (x+5)
@@ -23,4 +23,6 @@ void main(void) {
     }
     error = srr_reply(&server, sizeof(uint32_t)); if(error) { printf("srr_reply: %s\n", error); exit(EXIT_FAILURE); }
   }
+  
+  error = srr_disconnect(&server); if(error) { printf("srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
 }

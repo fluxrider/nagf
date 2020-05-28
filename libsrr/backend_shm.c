@@ -116,10 +116,13 @@ void my_copy_of_set_normalized_timespec_from_linux_source(struct timespec *ts, t
 }
 const char * srr_shm_wait(void * opaque, double s, int * line) {
   struct opaque_data * data = opaque;
-  if(s == 0) if(sem_wait(data->notify_me) == -1) { *line = __LINE__; return strerror(errno); }
-  struct timespec timeout;
-  if(clock_gettime(CLOCK_REALTIME, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
-  my_copy_of_set_normalized_timespec_from_linux_source(&timeout, timeout.tv_sec + (time_t)s, timeout.tv_nsec + (s - (time_t)s) * 1000000000L);
-  if(sem_timedwait(data->notify_me, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
+  if(s == 0) {
+    if(sem_wait(data->notify_me) == -1) { *line = __LINE__; return strerror(errno); }
+  } else {
+    struct timespec timeout;
+    if(clock_gettime(CLOCK_REALTIME, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
+    my_copy_of_set_normalized_timespec_from_linux_source(&timeout, timeout.tv_sec + (time_t)s, timeout.tv_nsec + (s - (time_t)s) * 1000000000L);
+    if(sem_timedwait(data->notify_me, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
+  }
   return NULL;
 }

@@ -1,4 +1,5 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
+// gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include/linux -o libsrrjni.so srr.jni.c -lrt -pthread -L. -lsrr
 #include "srr.h"
 #include "Jsrr.h"
 #include <stdbool.h>
@@ -39,6 +40,8 @@ JNIEXPORT jobject JNICALL Java_Jsrr_get_1length_1ptr(JNIEnv * env, jclass _c, jo
 
 JNIEXPORT jstring JNICALL Java_Jsrr_send(JNIEnv * env, jclass _c, jobject o, jint length) {
   struct opaque_data * data = (*env)->GetDirectBufferAddress(env, o);
+  const char * error = srr_send_dx(&data->srr, data->mem->msg, length, data->mem->msg, &data->mem->length);
+  return error? (*env)->NewStringUTF(env, error) : NULL;
 }
 
 JNIEXPORT jstring JNICALL Java_Jsrr_receive(JNIEnv * env, jclass _c, jobject o) {

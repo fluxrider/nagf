@@ -26,7 +26,7 @@ public class Jsrr implements AutoCloseable {
     this.opaque = Jsrr.init(name, length, is_server, use_multi_client_lock, timeout);
     if(this.opaque instanceof String) throw new RuntimeException(this.opaque.toString());
     this.msg = Jsrr.get_msg_ptr(this.opaque);
-    this.length = Jsrr.get_length_ptr(this.opaque).asIntBuffer();
+    this.length = Jsrr.get_length_ptr(this.opaque).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
   }
 
   public void close() throws Exception {

@@ -93,7 +93,7 @@ const char * srr_shm_post(void * opaque, int * line) {
 }
 
 
-#define MY_COPY_OF_NSEC_PER_SEC 1000000000L
+#define MY_COPY_OF_NSEC_PER_SEC 1000000000LL
 void my_copy_of_set_normalized_timespec_from_linux_source(struct timespec *ts, time_t sec, int64_t nsec)
 {
 	while (nsec >= MY_COPY_OF_NSEC_PER_SEC) {

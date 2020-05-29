@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-# PYTHONPATH=. LD_LIBRARY_PATH=msglib ./tmp/evt-test.py
+# PYTHONPATH=. LD_LIBRARY_PATH=libsrr python -B ./tmp/evt-test.py
 
 import time
 import importlib

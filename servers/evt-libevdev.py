@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-# PYTHONPATH=. LD_LIBRARY_PATH=msglib ./servers/evt-libevdev.py
+# PYTHONPATH=. LD_LIBRARY_PATH=libsrr python -B ./servers/evt-libevdev.py
 
 # A libevdev-based input devices event listener.
 # - first use it in 'mapping' mode (i.e. without arg) to spew a mapping file
@@ -20,7 +19,8 @@ import traceback
 import threading
 import watchdog.observers
 import watchdog.events
-from msglib.msgmgr import MsgMgr
+import importlib
+srr = importlib.import_module('libsrr.srr')
 import bitarray
 
 mapping_count = len(sys.argv) - 1 
@@ -325,7 +325,7 @@ def handle_client():
   global joystick_only
   global histokey
   try:
-    with MsgMgr('/evt-libevdev', is_server=True) as server:
+    with srr.Srr('/evt-libevdev', is_server=True) as server:
       while(True):
         data = server.receive()
         command = "none"

@@ -1,5 +1,0 @@
-*.class
-*.so
-client.h
-client
-server

@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 
 import time
 import math
 import bitarray
-from msglib.msgmgr import MsgMgr
+import importlib
+srr = importlib.import_module('libsrr.srr')
 
 A = 0
 B = 1
@@ -172,7 +172,7 @@ def u8_to_s8(u8):
 
 class Evt:
   def __init__(self, name):
-    self.client = MsgMgr(name)
+    self.client = srr.Srr(name)
     self.data = None
     self.__cached_axis_and_triggers = None
 

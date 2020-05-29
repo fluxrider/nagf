@@ -5,7 +5,6 @@ import time
 import importlib
 srr = importlib.import_module('libsrr.srr')
 
-
 with srr.srr('/gfx-swing') as gfx:
   while True:
     gfx.send("".encode());

@@ -120,6 +120,7 @@ TMP
 
       // sync with client
       srr.receive();
+      srr.reply(0);
 
       // flush our drawing to the screen
       synchronized (frontbuffer) {

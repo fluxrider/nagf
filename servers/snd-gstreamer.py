@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-# PYTHONPATH=. LD_LIBRARY_PATH=msglib ./servers/snd-gstreamer.py
+# PYTHONPATH=. LD_LIBRARY_PATH=libsrr python -B ./servers/snd-gstreamer.py
 
 # A simple gstreamer-based implementation of a sound server.
 # - blindly uses a high-level 'playbin' for the bg song.
@@ -17,7 +16,8 @@ import contextlib
 gi.require_version('Gst', '1.0')
 gi.require_version('GstAudio', '1.0')
 from gi.repository import Gst, GstAudio
-from msglib.msgmgr import MsgMgr
+import importlib
+srr = importlib.import_module('libsrr.srr')
 
 should_quit = threading.Event()
 error = None
@@ -135,7 +135,7 @@ def handle_fifo_loop():
             cubic = float(parts[-2])
             linear = float(parts[-1])
             path = ' '.join(parts[1:-2])
-            client = MsgMgr(path)
+            client = srr.Srr(path)
             source = Gst.ElementFactory.make("appsrc")
             raw = Gst.ElementFactory.make('rawaudioparse')
             raw.set_property('format', 'pcm')

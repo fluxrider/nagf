@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-# PYTHONPATH=. LD_LIBRARY_PATH=msglib ./tmp/snd-ctl.py snd-gstream.fifo
+# PYTHONPATH=. LD_LIBRARY_PATH=libsrr python -B ./tmp/snd-ctl.py snd-gstream.fifo
 
 # send message to snd server fifo specified as cmd arg
 
@@ -10,7 +9,8 @@ import stat
 import time
 import random
 import contextlib
-from msglib.msgmgr import MsgMgr
+import importlib
+srr = importlib.import_module('libsrr.srr')
 
 # NOTE aside from this check, you might as well just echo '' >> .fifo, but then again if [ -p "$pipe" ]
 server_fifo_path = sys.argv[1]
@@ -19,19 +19,19 @@ if not stat.S_ISFIFO(os.stat(server_fifo_path).st_mode): raise Exception("not a 
 with open(server_fifo_path, 'w') as f:
 
   # test basic functionality
-  print("stream test_res/music.ogg", file=f, flush=True)
+  print("stream res/music.ogg", file=f, flush=True)
   time.sleep(2.4)
   print("volume .7 1", file=f, flush=True)
   time.sleep(2.4)
   print("stop", file=f, flush=True)
   time.sleep(1)
-  print("fire test_res/go.ogg 1 1", file=f, flush=True)
+  print("fire res/go.ogg 1 1", file=f, flush=True)
   time.sleep(1)
-  print("fire test_res/go.ogg .7 1", file=f, flush=True)
+  print("fire res/go.ogg .7 1", file=f, flush=True)
   time.sleep(1)
 
   shm_path = '/my-tmp-shm'
-  with MsgMgr(shm_path, is_server=True) as server:
+  with srr.Srr(shm_path, is_server=True) as server:
     print(f'raw {shm_path} 1 1', file=f, flush=True)
     limit = 8000 * 3
     hz = 200

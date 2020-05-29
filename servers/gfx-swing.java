@@ -1,6 +1,6 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 // javac gfx-swing
-// java gfx_swing
+// LD_LIBRARY_PATH=libsrr java -Djava.library.path=$(pwd)/libsrr gfx_swing
 
 import java.io.*;
 import java.awt.*;
@@ -22,6 +22,8 @@ TMP
 
   // main
   public static void main(String[] args) {
+    srr srr = new srr("/gfx-swing", 8192, true, false, 3);
+    
     // smooth scaling, smooth text
     Map<RenderingHints.Key, Object> hints;
     Map<RenderingHints.Key, Object> hints_low;
@@ -129,6 +131,7 @@ TMP
 
     // if the loop ended, close the canvas
     frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
+    srr.close();
   }
 
 }

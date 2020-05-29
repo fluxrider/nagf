@@ -12,6 +12,7 @@
 #define CAP 512
 
 const char * srr_init(struct srr * self, const char * name, size_t length, bool is_server, bool use_multi_client_lock, double timeout) {
+  self->closed = true;
   self->length = length;
   self->is_server = is_server;
   self->use_multi_client_lock = use_multi_client_lock;
@@ -21,12 +22,15 @@ const char * srr_init(struct srr * self, const char * name, size_t length, bool 
   self->shm = srr_shm_connect(name, length, is_server, &error, &line);
   if(error != 0) { snprintf(self->error_msg, CAP, "srr_shm_connect:%d: %s", line, strerror(error)); return self->error_msg; }
   self->msg = srr_shm_get_mem(self->shm);
+  self->closed = false;
   return NULL;
 }
 
 const char * srr_disconnect(struct srr * self) {
+  if(self->closed) return NULL;
   int line;
   const char * error = srr_shm_disconnect(self->shm, &line);
+  self->closed = true;
   if(error != 0) { snprintf(self->error_msg, CAP, "srr_shm_disconnect:%d: %s", line, error); return self->error_msg; }
   return NULL;
 }

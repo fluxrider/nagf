@@ -29,7 +29,7 @@ public class srr implements AutoCloseable {
     this.length = srr.get_length_ptr(this.opaque).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
   }
 
-  public void close() throws Exception {
+  public void close() {
     String error = srr.close(this.opaque); if(error != null) throw new RuntimeException(error);
   }
 

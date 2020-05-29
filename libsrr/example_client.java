@@ -2,8 +2,6 @@
 // javac example_client.java
 // LD_LIBRARY_PATH=. java -Djava.library.path=$(pwd) example_client
 
-import java.nio.*;
-
 class example_client {
 
   public static void main(String [] args) {

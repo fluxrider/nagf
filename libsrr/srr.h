@@ -18,6 +18,7 @@ struct srr {
   void * shm;
   uint8_t * msg;
   char error_msg[512];
+  bool closed;
 };
 
 const char * srr_init(struct srr * self, const char * name, size_t length, bool is_server, bool use_multi_client_lock, double timeout);

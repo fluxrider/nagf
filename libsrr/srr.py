@@ -24,7 +24,7 @@ class Srr:
         ("timeout", ctypes.c_double),
         ("shm", ctypes.c_void_p),
         ("msg", ctypes.POINTER(ctypes.c_ubyte)),
-        ("error_msg", ctypes.c_char_p)
+        ("error_msg", ctypes.c_char * 512)
       ]
     self.srr_direct_class = srr_direct
     self.srr_class = srr

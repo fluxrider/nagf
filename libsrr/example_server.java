@@ -7,7 +7,7 @@ import java.nio.*;
 class example_server {
 
   public static void main(String [] args) {
-    try(Jsrr srr = new Jsrr("/example-srr", 8192, true, false, 3)) {
+    try(srr srr = new srr("/example-srr", 8192, true, false, 3)) {
       System.out.println(srr.as_string(srr.receive()));
       srr.reply("whatever");
     } catch(Exception e) { e.printStackTrace(); }

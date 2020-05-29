@@ -14,7 +14,7 @@ class benchmark_client {
     boolean multi = args.contains("multi");
     Random random = new Random();
 
-    try(Jsrr srr = new Jsrr("/benchmark-srr", 8192, false, multi, 3)) {
+    try(srr srr = new srr("/benchmark-srr", 8192, false, multi, 3)) {
       IntBuffer i = srr.msg.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
       long t0 = System.currentTimeMillis();
       int count = 0;

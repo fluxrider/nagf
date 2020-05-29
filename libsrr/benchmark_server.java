@@ -7,7 +7,7 @@ import java.nio.*;
 class benchmark_server {
 
   public static void main(String [] args) {
-    try(Jsrr srr = new Jsrr("/benchmark-srr", 8192, true, false, 2)) {
+    try(srr srr = new srr("/benchmark-srr", 8192, true, false, 2)) {
       IntBuffer i = srr.msg.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
       while(true) {
         srr.receive();

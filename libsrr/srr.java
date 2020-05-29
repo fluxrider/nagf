@@ -1,11 +1,11 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// javac Jsrr.java -h .
+// javac srr.java -h gen_header && mv gen_header/srr.h srr.jni.h && rm -Rf gen_header
 // gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include/linux -o libsrrjni.so srr.jni.c -lrt -pthread -L. -lsrr
 
 import java.nio.*;
 import java.nio.charset.*;
 
-public class Jsrr implements AutoCloseable {
+public class srr implements AutoCloseable {
 
   public ByteBuffer msg;
 
@@ -20,35 +20,35 @@ public class Jsrr implements AutoCloseable {
   private native static String reply(Object opaque, int length);
   static { System.loadLibrary("srrjni"); }
 
-  public Jsrr(String name, int length, boolean is_server, boolean use_multi_client_lock, double timeout) {
+  public srr(String name, int length, boolean is_server, boolean use_multi_client_lock, double timeout) {
     //if(!is_server) send_dx_buffer = ByteBuffer.allocate(length);
     //this.direct = is_server || !use_multi_client_lock;
-    this.opaque = Jsrr.init(name, length, is_server, use_multi_client_lock, timeout);
+    this.opaque = srr.init(name, length, is_server, use_multi_client_lock, timeout);
     if(this.opaque instanceof String) throw new RuntimeException(this.opaque.toString());
-    this.msg = Jsrr.get_msg_ptr(this.opaque);
-    this.length = Jsrr.get_length_ptr(this.opaque).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+    this.msg = srr.get_msg_ptr(this.opaque);
+    this.length = srr.get_length_ptr(this.opaque).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
   }
 
   public void close() throws Exception {
-    String error = Jsrr.close(this.opaque); if(error != null) throw new RuntimeException(error);
+    String error = srr.close(this.opaque); if(error != null) throw new RuntimeException(error);
   }
 
   public int send(int length) {
     // it is assumed that this.msg was filled up to length by caller
-    String error = Jsrr.send(this.opaque, length); if(error != null) throw new RuntimeException(error);
+    String error = srr.send(this.opaque, length); if(error != null) throw new RuntimeException(error);
     return this.length.get(0);
     // caller can now read this.msg up to the length return
   }
 
   public int receive() {
-    String error = Jsrr.receive(this.opaque); if(error != null) throw new RuntimeException(error);
+    String error = srr.receive(this.opaque); if(error != null) throw new RuntimeException(error);
     return this.length.get(0);
     // caller can now read this.msg up to the length return
   }
 
   public void reply(int length) {
     // it is assumed that this.msg was filled up to length by caller
-    String error = Jsrr.reply(this.opaque, length); if(error != null) throw new RuntimeException(error);
+    String error = srr.reply(this.opaque, length); if(error != null) throw new RuntimeException(error);
   }
  
   // convenience String method (that avoid intermediate buffers the best I can)
@@ -73,7 +73,7 @@ public class Jsrr implements AutoCloseable {
   private static CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
   private void write_string(CharSequence s) {
     this.msg.position(0);
-    Jsrr.encoder.encode(CharBuffer.wrap​(s), this.msg, true);
+    srr.encoder.encode(CharBuffer.wrap​(s), this.msg, true);
   }
 
 }

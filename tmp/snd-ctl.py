@@ -31,7 +31,7 @@ with open(server_fifo_path, 'w') as f:
   time.sleep(1)
 
   shm_path = '/my-tmp-shm'
-  with srr.Srr(shm_path, is_server=True) as server:
+  with srr.srr(shm_path, is_server=True) as server:
     print(f'raw {shm_path} 1 1', file=f, flush=True)
     limit = 8000 * 3
     hz = 200

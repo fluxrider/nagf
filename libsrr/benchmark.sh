@@ -7,7 +7,7 @@ gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include
 javac benchmark_server.java
 javac benchmark_client.java
 
-duration=10
+duration=$1
 echo 'Each test will take' $duration 'seconds.'
 echo 'The higher numbers the better.'
 

@@ -43,7 +43,7 @@ TMP
     // create window centered in screen
     int W = 800;
     int H = 450;
-    JFrame frame = new JFrame("");
+    JFrame frame = new JFrame();
     frame.setSize(W, H);
     frame.setLocationRelativeTo(null);
     

@@ -325,7 +325,7 @@ def handle_client():
   global joystick_only
   global histokey
   try:
-    with srr.Srr('/evt-libevdev', is_server=True) as server:
+    with srr.srr('/evt-libevdev', is_server=True) as server:
       while(True):
         data = server.receive()
         command = "none"

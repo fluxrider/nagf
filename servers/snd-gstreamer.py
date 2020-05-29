@@ -135,7 +135,7 @@ def handle_fifo_loop():
             cubic = float(parts[-2])
             linear = float(parts[-1])
             path = ' '.join(parts[1:-2])
-            client = srr.Srr(path)
+            client = srr.srr(path)
             source = Gst.ElementFactory.make("appsrc")
             raw = Gst.ElementFactory.make('rawaudioparse')
             raw.set_property('format', 'pcm')

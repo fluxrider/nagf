@@ -12,7 +12,7 @@ so.srr_send.restype = ctypes.c_char_p
 so.srr_receive.restype = ctypes.c_char_p
 so.srr_reply.restype = ctypes.c_char_p
 
-class Srr:
+class srr:
   def __init__(self, name, length=8192, is_server=False, use_multi_client_lock=False, timeout=3):
     class srr_direct(ctypes.Structure):
       _fields_ = [("length", ctypes.c_uint), ("msg", ctypes.c_ubyte * length)]

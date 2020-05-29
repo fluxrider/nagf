@@ -121,7 +121,7 @@ const char * srr_shm_wait(void * opaque, double s, int * line) {
   } else {
     struct timespec timeout;
     if(clock_gettime(CLOCK_REALTIME, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
-    my_copy_of_set_normalized_timespec_from_linux_source(&timeout, timeout.tv_sec + (time_t)s, timeout.tv_nsec + (s - (time_t)s) * 1000000000L);
+    my_copy_of_set_normalized_timespec_from_linux_source(&timeout, timeout.tv_sec + (time_t)s, timeout.tv_nsec + (s - (time_t)s) * 1000000000LL);
     if(sem_timedwait(data->notify_me, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
   }
   return NULL;

@@ -1,6 +1,6 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// javac gfx-swing
-// LD_LIBRARY_PATH=libsrr java -Djava.library.path=$(pwd)/libsrr gfx_swing
+// javac -classpath .. gfx-swing.java
+// LD_LIBRARY_PATH=libsrr java -cp .:servers -Djava.library.path=$(pwd)/libsrr gfx_swing
 
 import java.io.*;
 import java.awt.*;
@@ -9,6 +9,7 @@ import java.awt.image.*;
 import java.util.*;
 import java.util.List;
 import javax.swing.*;
+import libsrr.*;
 
 class gfx_swing {
 
@@ -115,9 +116,10 @@ TMP
       t0 = t1;
       // fps
       frame_count++;
-      //System.out.println(frame_count + ": " + 1 / delta_time);
+      System.out.println(frame_count + ": " + 1 / delta_time);
 
-      // TODO sync with client
+      // sync with client
+      srr.receive();
 
       // flush our drawing to the screen
       synchronized (frontbuffer) {

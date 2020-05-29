@@ -1,6 +1,8 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// javac example_server.java
-// LD_LIBRARY_PATH=. java -Djava.library.path=$(pwd) example_server
+// javac -classpath .. example_server.java
+// LD_LIBRARY_PATH=. java -cp .:.. -Djava.library.path=$(pwd) example_server
+
+import libsrr.*;
 
 class example_server {
 

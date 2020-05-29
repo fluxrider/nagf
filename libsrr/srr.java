@@ -1,7 +1,8 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// javac srr.java -h gen_header && mv gen_header/srr.h srr.jni.h && rm -Rf gen_header
+// javac srr.java -h gen_header && mv gen_header/libsrr_srr.h srr.jni.h && rm -Rf gen_header
 // gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include/linux -o libsrrjni.so srr.jni.c -lrt -pthread -L. -lsrr
 
+package libsrr;
 import java.nio.*;
 import java.nio.charset.*;
 

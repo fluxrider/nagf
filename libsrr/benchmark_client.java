@@ -1,9 +1,10 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// javac benchmark_client.java
-// LD_LIBRARY_PATH=. java -Djava.library.path=$(pwd) benchmark_client
+// javac -classpath .. benchmark_client.java
+// LD_LIBRARY_PATH=. java -cp .:.. -Djava.library.path=$(pwd) benchmark_client
 
 import java.nio.*;
 import java.util.*;
+import libsrr.*;
 
 class benchmark_client {
 

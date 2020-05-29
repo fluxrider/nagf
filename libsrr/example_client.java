@@ -8,9 +8,7 @@ class example_client {
 
   public static void main(String [] args) {
     try(Jsrr srr = new Jsrr("/example-srr", 8192, false, false, 3)) {
-      int length = srr.send("hello");
-      System.out.println("length: " + length);
-      System.out.println(srr.as_string(length));
+      System.out.println(srr.as_string(srr.send("hello")));
     } catch(Exception e) { e.printStackTrace(); }
   }
 

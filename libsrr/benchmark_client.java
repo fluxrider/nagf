@@ -16,7 +16,7 @@ class benchmark_client {
     Random random = new Random();
 
     try(srr srr = new srr("/benchmark-srr", 8192, false, multi, 3)) {
-      IntBuffer i = srr.msg.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+      IntBuffer i = srr.msg.order(ByteOrder.nativeOrder()).asIntBuffer();
       long t0 = System.currentTimeMillis();
       int count = 0;
       while(System.currentTimeMillis() < t0 + seconds*1000) {

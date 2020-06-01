@@ -23,8 +23,6 @@ TMP
 
   // main
   public static void main(String[] args) {
-    srr srr = new srr("/gfx-swing", 8192, true, false, 3);
-    
     // smooth scaling, smooth text
     Map<RenderingHints.Key, Object> hints;
     Map<RenderingHints.Key, Object> hints_low;
@@ -95,7 +93,6 @@ TMP
     // show window TODO wait for first frame and title before doing this
     frame.setContentPane(panel);
     frame.setVisible(true);
-    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // TODO proper burial
     frame.addWindowFocusListener(new WindowFocusListener() {
       public void windowLostFocus(WindowEvent e) {
         System.out.println(e);
@@ -105,36 +102,119 @@ TMP
       }
     });
 
-    // game loop
-    long t0 = System.currentTimeMillis();
-    boolean running = true;
-    int frame_count = 0;
-    while (running) {
-      // time flow
-      long t1 = System.currentTimeMillis();
-      double delta_time = (t1 - t0) / 1000.0;
-      t0 = t1;
-      // fps
-      frame_count++;
-      System.out.println(frame_count + ": " + 1 / delta_time);
+    // resources
+    Map<String, Object> cache = new TreeMap<>();
 
-      // sync with client
-      srr.receive();
-      srr.reply(0);
+    // synchronization
+    Object should_quit = new Object();
 
-      // flush our drawing to the screen
-      synchronized (frontbuffer) {
-        _g.drawImage(backbuffer, 0, 0, null);
+    // fifo thread (actual io)
+    Thread fifo_io = new Thread(new Runnable() {
+      public void run() {
+        try {
+          // simply put each command in a queue, to avoid blocking client
+        } catch(Throwable t) {
+          t.printStackTrace();
+        } finally {
+          synchronized(should_quit) { should_quit.notify(); }
+        }
       }
-      panel.repaint();
-      Thread.yield();
-      // clear backbuffer
-      g_clear.fillRect(0, 0, W, H);
-    }
+    });
+    fifo_io.start();
 
-    // if the loop ended, close the canvas
-    frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
-    srr.close();
+    // fifo thread (queue)
+    Thread fifo = new Thread(new Runnable() {
+      public void run() {
+        try {
+          // TODO if command is 'flush', stop handling any more messages until srr thread lets me
+        } catch(Throwable t) {
+          t.printStackTrace();
+        } finally {
+          synchronized(should_quit) { should_quit.notify(); }
+        }
+      }
+    });
+    fifo.start();
+
+    // srr thread
+    Thread srr = new Thread(new Runnable() {
+      public void run() {
+        try(srr srr = new srr("/gfx-swing", 8192, true, false, 3)) {
+          long t0 = System.currentTimeMillis();
+          while(true) {
+            // sync with client
+            String [] sync = srr.as_string(srr.receive()).split(" ");
+            srr.msg.position(0);
+            while(i < sync.length) {
+              String command = sync[i++];
+              if(command.equals("flush")) {
+                // TODO drain fifo till flush to ensure all drawing have been done
+                // flush our drawing to the screen
+                synchronized (frontbuffer) {
+                  _g.drawImage(backbuffer, 0, 0, null);
+                }
+                panel.repaint();
+                Thread.yield();
+                // clear backbuffer
+                g_clear.fillRect(0, 0, W, H);
+                // fps
+                long t1 = System.currentTimeMillis();
+                double fps = 1000.0 / (t1 - t0);
+                t0 = t1;
+                // let fifo resume
+              } else if(command.equals("fps")) {
+                srr.msg.putInt(3);
+                srr.msg.putInt(fps * 1000);
+              } else if(command.equals("stat")) {
+                // TODO drain fifo (but not past flush) to ensure path is understood
+                String path = sync[i++];
+                Object res = cache.get(path);
+                if(res == null) res = new RuntimeException("unknown path");
+                if(res instanceof Exception) {
+                  srr.msg.putInt(0);
+                  if(res instanceof FileNotFoundException) {
+                    srr.msg.put(Character.getNumericalValue('F')); 
+                    srr.msg.put(Character.getNumericalValue('N')); 
+                    srr.msg.put(Character.getNumericalValue('F')); 
+                  } else if(res instanceof IOException) {
+                    srr.msg.put(Character.getNumericalValue('I')); 
+                    srr.msg.put(Character.getNumericalValue('O')); 
+                    srr.msg.put(Character.getNumericalValue(' ')); 
+                  } else if(res instanceof Exception) {
+                    srr.msg.put(Character.getNumericalValue('E')); 
+                    srr.msg.put(Character.getNumericalValue(' ')); 
+                    srr.msg.put(Character.getNumericalValue(' ')); 
+                  }
+                } else if(res instanceof BufferedImage) {
+                  srr.msg.putInt(1);
+                  BufferedImage image = (BufferedImage)res;
+                  srr.msg.putInt(image.getWidth());
+                  srr.msg.putInt(image.getHeight());
+                } else if(res instanceof Font) {
+                  srr.msg.putInt(2);
+                } else if(res instanceof Progress) {
+                  Progress p = (Progress)res;
+                  srr.msg.putInt(p.what);
+                  srr.msg.putInt(0);
+                  srr.msg.putInt(p.value * 1000);
+                }
+              } else {
+                throw new RuntimeException("unknown command: " + command);
+              }
+            }
+            srr.reply(0);
+          }
+        } catch(Throwable t) {
+          t.printStackTrace();
+        } finally {
+          synchronized(should_quit) { should_quit.notify(); }
+        }
+      }
+    });
+    srr.start();
+    
+    synchronized(should_quit) { should_quit.wait(); }
+    System.exit(0);
   }
 
 }

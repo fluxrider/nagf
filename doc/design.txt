@@ -75,6 +75,7 @@ gfx
 - ctl like show_fps, list cache, zap cache entry
 - current goal is to support 2D stuff. 3D would be a version 2 thing.
 - drives animations (to keep application as light as possible)
+- FLAW: I use space as separator, so filenames containing them will cause issues
 
 dsk or mem
 - handles file i/o

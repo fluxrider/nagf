@@ -1,6 +1,6 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 // javac -classpath .. gfx-swing.java
-// LD_LIBRARY_PATH=libsrr java -cp .:servers -Djava.library.path=$(pwd)/libsrr gfx_swing
+// mkfifo gfx-swing.fifo && LD_LIBRARY_PATH=libsrr java -cp .:servers -Djava.library.path=$(pwd)/libsrr gfx_swing && rm gfx-swing.fifo
 
 import java.io.*;
 import java.awt.*;
@@ -10,19 +10,15 @@ import java.util.*;
 import java.util.List;
 import javax.swing.*;
 import libsrr.*;
+import java.nio.*;
+import java.nio.file.*;
+import java.util.concurrent.*;
+import javax.imageio.*;
 
 class gfx_swing {
 
-/*
-TMP
-    return javax.imageio.ImageIO.read(new File(path));
-    Font font = Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path));
-    font = font.deriveFont((float) size);
-    return new Canvas().getFontMetrics(font);
-*/
-
   // main
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     // smooth scaling, smooth text
     Map<RenderingHints.Key, Object> hints;
     Map<RenderingHints.Key, Object> hints_low;
@@ -106,17 +102,28 @@ TMP
     Map<String, Object> cache = new TreeMap<>();
 
     // synchronization
-    Object should_quit = new Object();
+    Semaphore should_quit = new Semaphore(-1);
+    Semaphore flush_pre = new Semaphore(-1);
+    Semaphore flush_post = new Semaphore(-1);
 
     // fifo thread (actual io)
+    Queue<String> fifo_queue = new LinkedList<String>();
     Thread fifo_io = new Thread(new Runnable() {
       public void run() {
         try {
-          // simply put each command in a queue, to avoid blocking client
+          // Note: sadly, java has no mkfifo at this time, and jna isn't standard lib, so here we assume the fifo already exists.
+          // Simply put each command in a queue, to avoid blocking client
+          while(true) {
+            List<String> lines = Files.readAllLines(Paths.get("gfx-swing.fifo"));
+            System.out.println("fifo read " + lines.size() + " lines");
+            synchronized(fifo_queue) {
+              fifo_queue.addAll(lines);
+            }
+          }
         } catch(Throwable t) {
           t.printStackTrace();
         } finally {
-          synchronized(should_quit) { should_quit.notify(); }
+          should_quit.release();
         }
       }
     });
@@ -126,11 +133,67 @@ TMP
     Thread fifo = new Thread(new Runnable() {
       public void run() {
         try {
-          // TODO if command is 'flush', stop handling any more messages until srr thread lets me
+          while(true) {
+            String command;
+            synchronized(fifo_queue) { command = fifo_queue.poll(); }
+            if(command == null) {
+              Thread.sleep(10); // TODO convert to non busy loop
+              continue; 
+            }
+            if(command.equals("flush")) {
+              // on flush, stop handling any more messages until srr thread completes the flush
+              flush_pre.release();
+              flush_post.acquire();
+            } else if(command.startsWith("title ")) {
+              frame.setTitle(command.substring(6));
+            } else if(command.startsWith("cache ")) {
+              String path = command.substring(6);
+              // fonts have sizes after the path
+              String [] parts = path.split(" ");
+              if(parts.length > 1) {
+                path = parts[0];
+                Font font = Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path));
+                Map<Float, Font> fonts = new TreeMap<>();
+                for(int i = 1; i < parts.length; i++) {
+                  Float size = Float.valueOf(parts[i]);
+                  fonts.put(size, font.deriveFont(size));
+                }
+                cache.put(path, fonts);
+              }
+              // if not it's an image
+              else {
+                try { cache.put(path, ImageIO.read(new File(path))); } catch(Exception e) { cache.put(path, e); }
+              }
+            } else if(command.startsWith("draw ")) {
+              String [] parts = command.split(" ");
+              String path = parts[1];
+              double x = Double.parseDouble(parts[2]);
+              double y = Double.parseDouble(parts[3]);
+              g.drawImage((BufferedImage)cache.get(path), (int)x, (int)y, null);
+            } else if(command.startsWith("text ")) {
+              String [] parts = command.split(" ");
+              String path = parts[1];
+              Float size = Float.valueOf(parts[2]);
+              double x = Double.parseDouble(parts[3]);
+              double y = Double.parseDouble(parts[4]);
+              Color fill = parse_color(parts[5]);
+              Color outline = parse_color(parts[6]);
+              // rebuild text (TODO this is getting messy)
+              StringBuilder text = new StringBuilder();
+              for(int i = 7; i < parts.length; i++) {
+                text.append(parts[i]);
+                text.append(' ');
+              }
+              g.setFont(((Map<Float, Font>)cache.get(path)).get(size));
+              g.setColor(fill);
+              // TODO outline  color
+              g.drawString(text.toString(), (int)x, (int)y);
+            }
+          }
         } catch(Throwable t) {
           t.printStackTrace();
         } finally {
-          synchronized(should_quit) { should_quit.notify(); }
+          should_quit.release();
         }
       }
     });
@@ -141,49 +204,61 @@ TMP
       public void run() {
         try(srr srr = new srr("/gfx-swing", 8192, true, false, 3)) {
           long t0 = System.currentTimeMillis();
+          double fps = 0;
           while(true) {
             // sync with client
-            String [] sync = srr.as_string(srr.receive()).split(" ");
+            String [] sync = srr.as_string(srr.receive()).toString().split(" ");
             srr.msg.position(0);
+            int i = 0;
             while(i < sync.length) {
               String command = sync[i++];
               if(command.equals("flush")) {
-                // TODO drain fifo till flush to ensure all drawing have been done
+                // let fifo drain until flush to ensure all drawing have been done
+                flush_pre.acquire();
                 // flush our drawing to the screen
-                synchronized (frontbuffer) {
-                  _g.drawImage(backbuffer, 0, 0, null);
-                }
+                synchronized (frontbuffer) { _g.drawImage(backbuffer, 0, 0, null); }
                 panel.repaint();
                 Thread.yield();
                 // clear backbuffer
                 g_clear.fillRect(0, 0, W, H);
                 // fps
                 long t1 = System.currentTimeMillis();
-                double fps = 1000.0 / (t1 - t0);
+                fps = 1000.0 / (t1 - t0);
                 t0 = t1;
                 // let fifo resume
+                flush_post.release();
               } else if(command.equals("fps")) {
                 srr.msg.putInt(3);
-                srr.msg.putInt(fps * 1000);
+                srr.msg.putInt((int)(fps * 1000));
               } else if(command.equals("stat")) {
-                // TODO drain fifo (but not past flush) to ensure path is understood
                 String path = sync[i++];
                 Object res = cache.get(path);
-                if(res == null) res = new RuntimeException("unknown path");
+                if(res == null) {
+                  // drain fifo (but not past a flush) and try again
+                  int size;
+                  synchronized(fifo_queue) { size = fifo_queue.size(); }
+                  while(size > 0 && flush_post.availablePermits() == 0) {
+                    System.out.println("Waiting for fifo to drain");
+                    Thread.sleep(10);
+                    synchronized(fifo_queue) { size = fifo_queue.size(); }
+                  }
+                  res = cache.get(path);
+                }
+                if(res == null) { res = new RuntimeException("unknown path"); }
                 if(res instanceof Exception) {
                   srr.msg.putInt(0);
                   if(res instanceof FileNotFoundException) {
-                    srr.msg.put(Character.getNumericalValue('F')); 
-                    srr.msg.put(Character.getNumericalValue('N')); 
-                    srr.msg.put(Character.getNumericalValue('F')); 
+                    srr.msg.put((byte)Character.getNumericValue​('F')); 
+                    srr.msg.put((byte)Character.getNumericValue​('N')); 
+                    srr.msg.put((byte)Character.getNumericValue​('F')); 
                   } else if(res instanceof IOException) {
-                    srr.msg.put(Character.getNumericalValue('I')); 
-                    srr.msg.put(Character.getNumericalValue('O')); 
-                    srr.msg.put(Character.getNumericalValue(' ')); 
+                    srr.msg.put((byte)Character.getNumericValue​('I')); 
+                    srr.msg.put((byte)Character.getNumericValue​('O')); 
+                    srr.msg.put((byte)Character.getNumericValue​(' ')); 
                   } else if(res instanceof Exception) {
-                    srr.msg.put(Character.getNumericalValue('E')); 
-                    srr.msg.put(Character.getNumericalValue(' ')); 
-                    srr.msg.put(Character.getNumericalValue(' ')); 
+                    srr.msg.put((byte)Character.getNumericValue​('E')); 
+                    srr.msg.put((byte)Character.getNumericValue​(' ')); 
+                    srr.msg.put((byte)Character.getNumericValue​(' ')); 
                   }
                 } else if(res instanceof BufferedImage) {
                   srr.msg.putInt(1);
@@ -192,11 +267,12 @@ TMP
                   srr.msg.putInt(image.getHeight());
                 } else if(res instanceof Font) {
                   srr.msg.putInt(2);
+                  // new Canvas().getFontMetrics(font);
                 } else if(res instanceof Progress) {
                   Progress p = (Progress)res;
                   srr.msg.putInt(p.what);
                   srr.msg.putInt(0);
-                  srr.msg.putInt(p.value * 1000);
+                  srr.msg.putInt((int)(p.value * 1000));
                 }
               } else {
                 throw new RuntimeException("unknown command: " + command);
@@ -207,14 +283,36 @@ TMP
         } catch(Throwable t) {
           t.printStackTrace();
         } finally {
-          synchronized(should_quit) { should_quit.notify(); }
+          should_quit.release();
         }
       }
     });
     srr.start();
     
-    synchronized(should_quit) { should_quit.wait(); }
+    should_quit.acquire();
     System.exit(0);
   }
 
+  private class Progress {
+    public int what;
+    public double value;
+  }
+  
+  private static Color parse_color(String hex) {
+    // from https://stackoverflow.com/questions/4129666/how-to-convert-hex-to-rgb-using-java, Ian Newland
+    switch(hex.length()) {
+      case 6:
+        return new Color(
+        Integer.valueOf(hex.substring(0, 2), 16),
+        Integer.valueOf(hex.substring(2, 4), 16),
+        Integer.valueOf(hex.substring(4, 6), 16));
+      case 8:
+        return new Color(
+        Integer.valueOf(hex.substring(0, 2), 16),
+        Integer.valueOf(hex.substring(2, 4), 16),
+        Integer.valueOf(hex.substring(4, 6), 16),
+        Integer.valueOf(hex.substring(6, 8), 16));
+    }
+    return null;
+  }
 }

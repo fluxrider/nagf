@@ -19,7 +19,7 @@ class GfxReply:
     return _utils_read_int(5)
 
   def stat(self):
-    retval = self.stat()
+    retval = self._stat()
     if retval[0] == 'error': raise RuntimeError(retval[1])
     return retval
 

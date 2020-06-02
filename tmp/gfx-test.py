@@ -11,7 +11,7 @@ with srr.srr('/gfx-swing') as gfx_sync, open('gfx-swing.fifo', 'w') as gfx:
   face = 'res/face.png'
   font = '/usr/share/fonts/TTF/DejaVuSans.ttf'
   print(f'cache {face}', file=gfx, flush=True)
-  print(f'cache {font}', file=gfx, flush=True)
+  print(f'cache {font} 16', file=gfx, flush=True)
   print('title gfx-test', file=gfx, flush=True)
 
   # only continue once essential resources are loaded
@@ -26,6 +26,6 @@ with srr.srr('/gfx-swing') as gfx_sync, open('gfx-swing.fifo', 'w') as gfx:
   # game loop
   while True:
     print(f'draw {face} 0 0', file=gfx, flush=True)
-    print(f'text {font} 100 100 ff0000 ff0000 {fps}', file=gfx, flush=True)
+    print(f'text {font} 16 100 100 ff0000 ff0000 {fps}', file=gfx, flush=True)
     print('flush')
     gfx_sync.send('flush fps'.encode())

@@ -8,6 +8,8 @@ class GfxReply:
   def set(self, data):
     self.data = data
     self.stat_p = 9
+    print(f'gfx-util: len={len(data)}')
+    print(data)
 
   def focused(self):
     return data[0] != 0
@@ -30,8 +32,9 @@ class GfxReply:
     # error type
     if t == 0:
       code = self.data[self.stat_p:self.stat_p+3]
+      
       self.stat_p += 3
-      return ('error', f'{code}')
+      return ('error', f'{chr(code[0])}{chr(code[1])}{chr(code[2])}')
     # img type
     if t == 1:
       w = self._utils_read_int(self.stat_p)

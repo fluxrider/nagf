@@ -17,6 +17,9 @@ import javax.imageio.*;
 
 class gfx_swing {
 
+  private static int W, H;
+  private static boolean focused;
+
   // main
   public static void main(String[] args) throws Exception {
     // smooth scaling, smooth text
@@ -38,8 +41,8 @@ class gfx_swing {
     hints_low.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
 
     // create window centered in screen
-    int W = 800;
-    int H = 450;
+    W = 800;
+    H = 450;
     JFrame frame = new JFrame();
     frame.setSize(W, H);
     frame.setLocationRelativeTo(null);
@@ -87,14 +90,17 @@ class gfx_swing {
     };
 
     // show window TODO wait for first frame and title before doing this
+    focused = false;
     frame.setContentPane(panel);
     frame.setVisible(true);
     frame.addWindowFocusListener(new WindowFocusListener() {
       public void windowLostFocus(WindowEvent e) {
         System.out.println(e);
+        focused = true;
       }
       public void windowGainedFocus(WindowEvent e) {
         System.out.println(e);
+        focused = false;
       }
     });
 
@@ -102,9 +108,9 @@ class gfx_swing {
     Map<String, Object> cache = new TreeMap<>();
 
     // synchronization
-    Semaphore should_quit = new Semaphore(-1);
-    Semaphore flush_pre = new Semaphore(-1);
-    Semaphore flush_post = new Semaphore(-1);
+    Semaphore should_quit = new Semaphore(0);
+    Semaphore flush_pre = new Semaphore(0);
+    Semaphore flush_post = new Semaphore(0);
 
     // fifo thread (actual io)
     Queue<String> fifo_queue = new LinkedList<String>();
@@ -140,17 +146,22 @@ class gfx_swing {
               Thread.sleep(10); // TODO convert to non busy loop
               continue; 
             }
+            System.out.println("Handling fifo command: " + command);
             if(command.equals("flush")) {
+              System.out.println("fifo flush");
               // on flush, stop handling any more messages until srr thread completes the flush
               flush_pre.release();
               flush_post.acquire();
+              System.out.println("fifo flush done");
             } else if(command.startsWith("title ")) {
+              System.out.println("setting title");
               frame.setTitle(command.substring(6));
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
               // fonts have sizes after the path
               String [] parts = path.split(" ");
               if(parts.length > 1) {
+                System.out.println("caching a font");
                 path = parts[0];
                 Font font = Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path));
                 Map<Float, Font> fonts = new TreeMap<>();
@@ -162,7 +173,11 @@ class gfx_swing {
               }
               // if not it's an image
               else {
-                try { cache.put(path, ImageIO.read(new File(path))); } catch(Exception e) { cache.put(path, e); }
+                System.out.println("caching an image");
+                try {cache.put(path, ImageIO.read(new File(path))); } catch(Exception e) { 
+                  System.out.println("error caching image " + e);
+                  cache.put(path, e);
+                }
               }
             } else if(command.startsWith("draw ")) {
               String [] parts = command.split(" ");
@@ -209,10 +224,14 @@ class gfx_swing {
             // sync with client
             String [] sync = srr.as_string(srr.receive()).toString().split(" ");
             srr.msg.position(0);
+            srr.msg.put(focused? (byte)1 : (byte)0);
+            srr.msg.putInt(W);
+            srr.msg.putInt(H);
             int i = 0;
             while(i < sync.length) {
               String command = sync[i++];
               if(command.equals("flush")) {
+                System.out.println("sync flush");
                 // let fifo drain until flush to ensure all drawing have been done
                 flush_pre.acquire();
                 // flush our drawing to the screen
@@ -227,11 +246,15 @@ class gfx_swing {
                 t0 = t1;
                 // let fifo resume
                 flush_post.release();
+                System.out.println("sync flush done");
               } else if(command.equals("fps")) {
-                srr.msg.putInt(3);
+                System.out.println("sync fps");
+                srr.msg.put((byte)3);
                 srr.msg.putInt((int)(fps * 1000));
               } else if(command.equals("stat")) {
+                System.out.println("sync stat");
                 String path = sync[i++];
+                System.out.println("stat path: " + path);
                 Object res = cache.get(path);
                 if(res == null) {
                   // drain fifo (but not past a flush) and try again
@@ -246,31 +269,35 @@ class gfx_swing {
                 }
                 if(res == null) { res = new RuntimeException("unknown path"); }
                 if(res instanceof Exception) {
-                  srr.msg.putInt(0);
+                  System.out.println("stat error " + res);
+                  srr.msg.put((byte)0);
                   if(res instanceof FileNotFoundException) {
-                    srr.msg.put((byte)Character.getNumericValue​('F')); 
-                    srr.msg.put((byte)Character.getNumericValue​('N')); 
-                    srr.msg.put((byte)Character.getNumericValue​('F')); 
+                    srr.msg.put((byte)(int)'F'); 
+                    srr.msg.put((byte)(int)'N'); 
+                    srr.msg.put((byte)(int)'F'); 
                   } else if(res instanceof IOException) {
-                    srr.msg.put((byte)Character.getNumericValue​('I')); 
-                    srr.msg.put((byte)Character.getNumericValue​('O')); 
-                    srr.msg.put((byte)Character.getNumericValue​(' ')); 
-                  } else if(res instanceof Exception) {
-                    srr.msg.put((byte)Character.getNumericValue​('E')); 
-                    srr.msg.put((byte)Character.getNumericValue​(' ')); 
-                    srr.msg.put((byte)Character.getNumericValue​(' ')); 
+                    srr.msg.put((byte)(int)'I'); 
+                    srr.msg.put((byte)(int)'O'); 
+                    srr.msg.put((byte)(int)' '); 
+                  } else {
+                    srr.msg.put((byte)(int)'E'); 
+                    srr.msg.put((byte)(int)' '); 
+                    srr.msg.put((byte)(int)' '); 
                   }
                 } else if(res instanceof BufferedImage) {
-                  srr.msg.putInt(1);
+                  System.out.println("stat img");
+                  srr.msg.put((byte)1);
                   BufferedImage image = (BufferedImage)res;
                   srr.msg.putInt(image.getWidth());
                   srr.msg.putInt(image.getHeight());
                 } else if(res instanceof Font) {
-                  srr.msg.putInt(2);
+                  System.out.println("stat font");
+                  srr.msg.put((byte)2);
                   // new Canvas().getFontMetrics(font);
                 } else if(res instanceof Progress) {
+                  System.out.println("stat progress");
                   Progress p = (Progress)res;
-                  srr.msg.putInt(p.what);
+                  srr.msg.put(p.what);
                   srr.msg.putInt(0);
                   srr.msg.putInt((int)(p.value * 1000));
                 }
@@ -278,7 +305,7 @@ class gfx_swing {
                 throw new RuntimeException("unknown command: " + command);
               }
             }
-            srr.reply(0);
+            srr.reply(srr.msg.position());
           }
         } catch(Throwable t) {
           t.printStackTrace();
@@ -294,7 +321,7 @@ class gfx_swing {
   }
 
   private class Progress {
-    public int what;
+    public byte what;
     public double value;
   }
   

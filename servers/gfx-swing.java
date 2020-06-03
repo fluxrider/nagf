@@ -121,12 +121,24 @@ class gfx_swing {
           // Note: sadly, java has no mkfifo at this time, and jna isn't standard lib, so here we assume the fifo already exists.
           // Simply put each command in a queue, to avoid blocking client
           while(true) {
+            /*
             List<String> lines = Files.readAllLines(Paths.get("gfx-swing.fifo"));
             System.out.println("fifo read " + lines.size() + " lines");
             synchronized(fifo_queue) {
               fifo_queue.addAll(lines);
             }
             queue_list.release(lines.size());
+            */
+            BufferedReader reader = new BufferedReader(new FileReader("gfx-swing.fifo"));
+            String line = reader.readLine();
+            while (line != null) {
+              System.out.println("fifo read 1 line");
+              synchronized(fifo_queue) { fifo_queue.add(line); }
+              queue_list.release();
+              // read next line
+              line = reader.readLine();
+            }
+            reader.close();
           }
         } catch(Throwable t) {
           t.printStackTrace();
@@ -239,6 +251,9 @@ class gfx_swing {
                 Thread.yield();
                 // clear backbuffer
                 g_clear.fillRect(0, 0, W, H);
+                // TMP why isn't g_clear working?
+                g.setColor(Color.WHITE);
+                g.fillRect(0, 0, W, H);
                 // fps
                 long t1 = System.currentTimeMillis();
                 fps = 1000.0 / (t1 - t0);
@@ -256,16 +271,21 @@ class gfx_swing {
                 System.out.println("stat path: " + path);
                 Object res = cache.get(path);
                 if(res == null) {
-                  // drain fifo (but not past a flush) and try again
-                  int size;
-                  synchronized(fifo_queue) { size = fifo_queue.size(); }
-                  while(size > 0 && flush_post.availablePermits() == 0) {
-                    System.out.println("Waiting for fifo to drain");
+                  // drain fifo (but not past a flush) and try again.
+                  // ideally, user would always flush before doing stats
+                  // however, on first frame, this scenario is legit,
+                  // so before returning an error, we will give the fifo thread a chance,
+                  // but we'll print a warning because of the horrid lag.
+                  long max_wait = 500;
+                  while(max_wait > 0 && flush_post.availablePermits() == 0) {
+                    System.out.println("Warning: waiting for fifo to drain for stat.");
                     Thread.sleep(10);
-                    synchronized(fifo_queue) { size = fifo_queue.size(); }
+                    res = cache.get(path);
+                    if(res != null) break;
+                    max_wait -= 10;
                   }
-                  System.out.println("drain " + size + " " + flush_post.availablePermits());
-                  res = cache.get(path);
+                  if(max_wait <= 0) System.out.println("Warning: reached max waiting period");
+                  else System.out.println("Warning: had to wait " + (500 - max_wait) + " ms.");
                 }
                 if(res == null) { res = new RuntimeException("unknown path"); }
                 if(res instanceof Exception) {
@@ -290,7 +310,7 @@ class gfx_swing {
                   BufferedImage image = (BufferedImage)res;
                   srr.msg.putInt(image.getWidth());
                   srr.msg.putInt(image.getHeight());
-                } else if(res instanceof Font) {
+                } else if(res instanceof Map) {
                   System.out.println("stat font");
                   srr.msg.put((byte)2);
                   // new Canvas().getFontMetrics(font);

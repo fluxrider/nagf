@@ -22,10 +22,14 @@ with srr.srr('/gfx-swing') as gfx_sync, open('gfx-swing.fifo', 'w') as gfx:
     # if any of the stat had errors, reading it will raise the exception
     if face_stat[0] == 'ready' and font_stat[0] == 'ready': break
     print('loading...')
+    print(face_stat[0])
+    print(font_stat[0])
 
   # game loop
+  fps = ('fps', 0)
   while True:
     print(f'draw {face} 0 0', file=gfx, flush=True)
-    print(f'text {font} 16 100 100 ff0000 ff0000 {fps}', file=gfx, flush=True)
-    print('flush')
-    gfx_sync.send('flush fps'.encode())
+    print(f'text {font} 16 100 100 ff0000 ff0000 {fps[1]}', file=gfx, flush=True)
+    print('flush', file=gfx, flush=True)
+    gfx_reply.set(gfx_sync.send('flush fps'.encode()))
+    fps = gfx_reply.stat()

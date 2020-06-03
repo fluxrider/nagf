@@ -111,6 +111,7 @@ class gfx_swing {
     Semaphore should_quit = new Semaphore(0);
     Semaphore flush_pre = new Semaphore(0);
     Semaphore flush_post = new Semaphore(0);
+    Semaphore queue_list = new Semaphore(0);
 
     // fifo thread (actual io)
     Queue<String> fifo_queue = new LinkedList<String>();
@@ -125,6 +126,7 @@ class gfx_swing {
             synchronized(fifo_queue) {
               fifo_queue.addAll(lines);
             }
+            queue_list.release(lines.size());
           }
         } catch(Throwable t) {
           t.printStackTrace();
@@ -141,11 +143,8 @@ class gfx_swing {
         try {
           while(true) {
             String command;
-            synchronized(fifo_queue) { command = fifo_queue.poll(); }
-            if(command == null) {
-              Thread.sleep(10); // TODO convert to non busy loop
-              continue; 
-            }
+            queue_list.acquire();
+            synchronized(fifo_queue) { command = fifo_queue.remove(); }
             System.out.println("Handling fifo command: " + command);
             if(command.equals("flush")) {
               System.out.println("fifo flush");
@@ -265,6 +264,7 @@ class gfx_swing {
                     Thread.sleep(10);
                     synchronized(fifo_queue) { size = fifo_queue.size(); }
                   }
+                  System.out.println("drain " + size + " " + flush_post.availablePermits());
                   res = cache.get(path);
                 }
                 if(res == null) { res = new RuntimeException("unknown path"); }

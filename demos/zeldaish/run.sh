@@ -39,12 +39,20 @@ kill $evt_pid
 kill $gfx_pid
 if kill -0 $demo_pid; then
   echo '---- kill game (in 5 seconds) ----'
-  if kill -0 $demo_pid; then sleep 1; fi
-  if kill -0 $demo_pid; then sleep 1; fi
-  if kill -0 $demo_pid; then sleep 1; fi
-  if kill -0 $demo_pid; then sleep 1; fi
-  if kill -0 $demo_pid; then sleep 1; fi
-  if kill -0 $demo_pid; then kill $demo_pid; fi
+  t=5
+  while : ; do
+      sleep 1
+      let t--
+      if ! kill -0 $demo_pid; then
+        echo 'it stopped by itself'
+        break
+      fi
+      if [ "$t" -eq "0" ]; then
+        echo 'killing it'
+        kill $demo_pid
+        break
+      fi
+  done
 fi
 
 echo '---- cleanup ----'

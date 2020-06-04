@@ -24,7 +24,7 @@ void main(void) {
 
   // tmp
   dprintf(snd, "stream bg.ogg\n");
-  sleep(2);
+  sleep(3);
 
   // disconnect
   close(gfx);

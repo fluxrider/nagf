@@ -81,7 +81,7 @@ def handle_message_loop(player):
     should_quit.set()
 
 # listen to client messages (from the FIFO)
-server_fifo_path = 'snd-gstream.fifo'
+server_fifo_path = 'snd.fifo'
 def handle_fifo_loop():
   global error
   global should_quit

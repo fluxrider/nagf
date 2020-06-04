@@ -1,6 +1,6 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 // javac -classpath .. gfx-swing.java
-// mkfifo gfx-swing.fifo && LD_LIBRARY_PATH=libsrr java -cp .:servers -Djava.library.path=$(pwd)/libsrr gfx_swing && rm gfx-swing.fifo
+// mkfifo gfx.fifo && LD_LIBRARY_PATH=libsrr java -cp .:servers -Djava.library.path=$(pwd)/libsrr gfx_swing && rm gfx.fifo
 
 import java.io.*;
 import java.awt.*;
@@ -22,6 +22,8 @@ class gfx_swing {
 
   // main
   public static void main(String[] args) throws Exception {
+    String shm_path = args[0];
+    
     // smooth scaling, smooth text
     Map<RenderingHints.Key, Object> hints;
     Map<RenderingHints.Key, Object> hints_low;
@@ -122,14 +124,14 @@ class gfx_swing {
           // Simply put each command in a queue, to avoid blocking client
           while(true) {
             /*
-            List<String> lines = Files.readAllLines(Paths.get("gfx-swing.fifo"));
+            List<String> lines = Files.readAllLines(Paths.get("gfx.fifo"));
             System.out.println("fifo read " + lines.size() + " lines");
             synchronized(fifo_queue) {
               fifo_queue.addAll(lines);
             }
             queue_list.release(lines.size());
             */
-            BufferedReader reader = new BufferedReader(new FileReader("gfx-swing.fifo"));
+            BufferedReader reader = new BufferedReader(new FileReader("gfx.fifo"));
             String line = reader.readLine();
             while (line != null) {
               System.out.println("fifo read 1 line");
@@ -228,7 +230,7 @@ class gfx_swing {
     // srr thread
     Thread srr = new Thread(new Runnable() {
       public void run() {
-        try(srr srr = new srr("/gfx-swing", 8192, true, false, 3)) {
+        try(srr srr = new srr(shm_path, 8192, true, false, 3)) {
           long t0 = System.currentTimeMillis();
           double fps = 0;
           while(true) {

@@ -23,8 +23,9 @@ import importlib
 srr = importlib.import_module('libsrr.srr')
 import bitarray
 
-mapping_count = len(sys.argv) - 1 
-mapping_mode = mapping_count == 0
+mapping_count = len(sys.argv) - 2
+mapping_mode = mapping_count <= 0
+shm_path = sys.argv[1] if not mapping_mode else None
 M_COUNT = 4
 G_COUNT = 4
 G_KEY_COUNT = 17
@@ -43,13 +44,13 @@ for i in range(mapping_count):
   for b in buttons: mapping[i][b] = set()
   for a in axes: mapping[i][a] = set()
   for t in triggers: mapping[i][t] = set()
-  with open(sys.argv[i+1]) as f:
+  with open(sys.argv[i+2]) as f:
     for line in f:
       line = line.strip()
       parts = line.split()
       k = parts[0]
       if k not in buttons and k not in axes and k not in triggers:
-        print(f'BAD MAPPING FILE {sys.argv[i+1]}')
+        print(f'BAD MAPPING FILE {sys.argv[i+2]}')
       mapping[i][k].add(line[len(k)+1:])
 if mapping_mode:
   mapping.append({})
@@ -325,7 +326,7 @@ def handle_client():
   global joystick_only
   global histokey
   try:
-    with srr.srr('/evt-libevdev', is_server=True) as server:
+    with srr.srr(shm_path, is_server=True) as server:
       while(True):
         data = server.receive()
         command = "none"

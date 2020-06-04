@@ -23,7 +23,7 @@ void main(void) {
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
 
   // tmp
-  dprintf(snd, "stream bg.ogg\n");
+  dprintf(snd, "stream bg1.ogg\n");
   sleep(3);
 
   // disconnect

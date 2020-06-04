@@ -36,8 +36,9 @@ void main(int argc, char * argv[]) {
 
     // gfx
     dprintf(gfx, "flush\n");
-    sprintf(gmm->msg, "flush");
-    error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    sprintf(gmm->msg, "flush"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    bool focused = gmm->msg[0];
+    running = !gmm->msg[1];
   }
 
   // disconnect

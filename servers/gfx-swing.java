@@ -18,7 +18,7 @@ import javax.imageio.*;
 class gfx_swing {
 
   private static int W, H;
-  private static boolean focused;
+  private static boolean focused, quitting;
 
   // main
   public static void main(String[] args) throws Exception {
@@ -91,10 +91,16 @@ class gfx_swing {
       }
     };
 
+    // synchronization
+    Semaphore should_quit = new Semaphore(0);
+    Semaphore flush_pre = new Semaphore(0);
+    Semaphore flush_post = new Semaphore(0);
+    Semaphore queue_list = new Semaphore(0);
+
     // show window TODO wait for first frame and title before doing this
     focused = false;
+    quitting = false;
     frame.setContentPane(panel);
-    frame.setVisible(true);
     frame.addWindowFocusListener(new WindowFocusListener() {
       public void windowLostFocus(WindowEvent e) {
         System.out.println(e);
@@ -105,15 +111,36 @@ class gfx_swing {
         focused = false;
       }
     });
+    frame.addWindowListener(new WindowListener() {
+      public void windowActivated(WindowEvent e) {
+        System.out.println(e);
+      }
+      public void windowClosed(WindowEvent e) {
+        System.out.println(e);
+      }
+      public void windowClosing(WindowEvent e) {
+        System.out.println(e);
+        focused = false;
+        quitting = true;
+        should_quit.release();
+      }
+      public void windowDeactivated(WindowEvent e) {
+        System.out.println(e);
+      }
+      public void windowDeiconified(WindowEvent e) {
+        System.out.println(e);
+      }
+      public void windowIconified(WindowEvent e) {
+        System.out.println(e);
+      }
+      public void windowOpened(WindowEvent e) {
+        System.out.println(e);
+      }
+    });
+    frame.setVisible(true);
 
     // resources
     Map<String, Object> cache = new TreeMap<>();
-
-    // synchronization
-    Semaphore should_quit = new Semaphore(0);
-    Semaphore flush_pre = new Semaphore(0);
-    Semaphore flush_post = new Semaphore(0);
-    Semaphore queue_list = new Semaphore(0);
 
     // fifo thread (actual io)
     Queue<String> fifo_queue = new LinkedList<String>();
@@ -123,18 +150,10 @@ class gfx_swing {
           // Note: sadly, java has no mkfifo at this time, and jna isn't standard lib, so here we assume the fifo already exists.
           // Simply put each command in a queue, to avoid blocking client
           while(true) {
-            /*
-            List<String> lines = Files.readAllLines(Paths.get("gfx.fifo"));
-            System.out.println("fifo read " + lines.size() + " lines");
-            synchronized(fifo_queue) {
-              fifo_queue.addAll(lines);
-            }
-            queue_list.release(lines.size());
-            */
+            // note: Files.readAllLines lags with fifo, so I'm using the tried and true buffered reader instead.
             BufferedReader reader = new BufferedReader(new FileReader("gfx.fifo"));
             String line = reader.readLine();
             while (line != null) {
-              System.out.println("fifo read 1 line");
               synchronized(fifo_queue) { fifo_queue.add(line); }
               queue_list.release();
               // read next line
@@ -159,13 +178,10 @@ class gfx_swing {
             String command;
             queue_list.acquire();
             synchronized(fifo_queue) { command = fifo_queue.remove(); }
-            System.out.println("Handling fifo command: " + command);
             if(command.equals("flush")) {
-              System.out.println("fifo flush");
               // on flush, stop handling any more messages until srr thread completes the flush
               flush_pre.release();
               flush_post.acquire();
-              System.out.println("fifo flush done");
             } else if(command.startsWith("title ")) {
               System.out.println("setting title");
               frame.setTitle(command.substring(6));
@@ -238,39 +254,37 @@ class gfx_swing {
             String [] sync = srr.as_string(srr.receive()).toString().split(" ");
             srr.msg.position(0);
             srr.msg.put(focused? (byte)1 : (byte)0);
+            srr.msg.put(quitting? (byte)1 : (byte)0);
             srr.msg.putInt(W);
             srr.msg.putInt(H);
             int i = 0;
             while(i < sync.length) {
               String command = sync[i++];
               if(command.equals("flush")) {
-                System.out.println("sync flush");
                 // let fifo drain until flush to ensure all drawing have been done
                 flush_pre.acquire();
                 // flush our drawing to the screen
-                synchronized (frontbuffer) { _g.drawImage(backbuffer, 0, 0, null); }
-                panel.repaint();
-                Thread.yield();
-                // clear backbuffer
-                g_clear.fillRect(0, 0, W, H);
-                // TMP why isn't g_clear working?
-                g.setColor(Color.WHITE);
-                g.fillRect(0, 0, W, H);
+                if(!quitting) {
+                  synchronized (frontbuffer) { _g.drawImage(backbuffer, 0, 0, null); }
+                  panel.repaint();
+                  Thread.yield();
+                  // clear backbuffer
+                  g_clear.fillRect(0, 0, W, H);
+                  // TMP why isn't g_clear working?
+                  g.setColor(Color.WHITE);
+                  g.fillRect(0, 0, W, H);
+                }
                 // fps
                 long t1 = System.currentTimeMillis();
                 fps = 1000.0 / (t1 - t0);
                 t0 = t1;
                 // let fifo resume
                 flush_post.release();
-                System.out.println("sync flush done");
               } else if(command.equals("fps")) {
-                System.out.println("sync fps");
                 srr.msg.put((byte)3);
                 srr.msg.putInt((int)(fps * 1000));
               } else if(command.equals("stat")) {
-                System.out.println("sync stat");
                 String path = sync[i++];
-                System.out.println("stat path: " + path);
                 Object res = cache.get(path);
                 if(res == null) {
                   // drain fifo (but not past a flush) and try again.
@@ -291,7 +305,6 @@ class gfx_swing {
                 }
                 if(res == null) { res = new RuntimeException("unknown path"); }
                 if(res instanceof Exception) {
-                  System.out.println("stat error " + res);
                   srr.msg.put((byte)0);
                   if(res instanceof FileNotFoundException) {
                     srr.msg.put((byte)(int)'F'); 
@@ -307,17 +320,14 @@ class gfx_swing {
                     srr.msg.put((byte)(int)' '); 
                   }
                 } else if(res instanceof BufferedImage) {
-                  System.out.println("stat img");
                   srr.msg.put((byte)1);
                   BufferedImage image = (BufferedImage)res;
                   srr.msg.putInt(image.getWidth());
                   srr.msg.putInt(image.getHeight());
                 } else if(res instanceof Map) {
-                  System.out.println("stat font");
                   srr.msg.put((byte)2);
                   // new Canvas().getFontMetrics(font);
                 } else if(res instanceof Progress) {
-                  System.out.println("stat progress");
                   Progress p = (Progress)res;
                   srr.msg.put(p.what);
                   srr.msg.putInt(0);
@@ -339,6 +349,10 @@ class gfx_swing {
     srr.start();
     
     should_quit.acquire();
+    if(quitting) {
+      // give ourself a second to report that we are quitting to the client
+      try { Thread.sleep(1000); } finally { }
+    }
     System.exit(0);
   }
 

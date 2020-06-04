@@ -32,24 +32,28 @@ LD_LIBRARY_PATH=../../libsrr ./$demo_name &
 demo_pid=$!
 
 echo '---- wait until any of the launched process terminates ----'
+echo "snd $snd_pid"
+echo "evt $evt_pid"
+echo "gfx $gfx_pid"
+echo "demo $demo_pid"
 wait -n
 echo '---- kill servers ----'
-kill $snd_pid
-kill $evt_pid
-kill $gfx_pid
-if kill -0 $demo_pid; then
+kill $snd_pid 2> /dev/null
+kill $evt_pid 2> /dev/null
+kill $gfx_pid 2> /dev/null
+if kill -0 $demo_pid 2> /dev/null; then
   echo '---- kill game (in 5 seconds) ----'
   t=5
   while : ; do
       sleep 1
       let t--
-      if ! kill -0 $demo_pid; then
+      if ! kill -0 $demo_pid 2> /dev/null; then
         echo 'it stopped by itself'
         break
       fi
       if [ "$t" -eq "0" ]; then
         echo 'killing it'
-        kill $demo_pid
+        kill $demo_pid 2> /dev/null
         break
       fi
   done

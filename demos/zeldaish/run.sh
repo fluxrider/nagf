@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -e
+trap 'echo SIGINT unblocks this script, but it is recommended to let it finish' SIGINT
 demo_name=${PWD##*/} # basename $PWD
 
 echo '---- compile libsrr ----'
@@ -63,3 +64,4 @@ echo '---- cleanup ----'
 rm *.fifo
 rm /dev/shm/$demo_name*
 rm $demo_name
+trap SIGINT

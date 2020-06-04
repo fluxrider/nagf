@@ -24,20 +24,21 @@ void main(int argc, char * argv[]) {
   int gfx = open("gfx.fifo", O_WRONLY); if(gfx == -1) { perror("open(gfx.fifo)"); exit(EXIT_FAILURE); }
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
 
-  // tmp
+  // game setup
   dprintf(snd, "stream bg1.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
 
   // game loop
   bool running = true;
+  bool focused = true;
   while(running) {
     // input
-    error = srr_send(&evt, 0); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
+    sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
 
     // gfx
     dprintf(gfx, "flush\n");
     sprintf(gmm->msg, "flush"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
-    bool focused = gmm->msg[0];
+    focused = gmm->msg[0];
     running = !gmm->msg[1];
   }
 

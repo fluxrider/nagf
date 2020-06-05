@@ -210,10 +210,21 @@ class gfx_swing {
               }
             } else if(command.startsWith("draw ")) {
               String [] parts = command.split(" ");
-              String path = parts[1];
-              double x = Double.parseDouble(parts[2]);
-              double y = Double.parseDouble(parts[3]);
-              g.drawImage((BufferedImage)cache.get(path), (int)x, (int)y, null);
+              int i = 1;
+              String path = parts[i++];
+              if(parts.length == 4) {
+                int x = (int)Double.parseDouble(parts[i++]);
+                int y = (int)Double.parseDouble(parts[i++]);
+                g.drawImage((BufferedImage)cache.get(path), x, y, null);
+              } else {
+                int sx = (int)Double.parseDouble(parts[i++]);
+                int sy = (int)Double.parseDouble(parts[i++]);
+                int w = (int)Double.parseDouble(parts[i++]);
+                int h = (int)Double.parseDouble(parts[i++]);
+                int x = (int)Double.parseDouble(parts[i++]);
+                int y = (int)Double.parseDouble(parts[i++]);
+                g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+              }
             } else if(command.startsWith("text ")) {
               String [] parts = command.split(" ");
               String path = parts[1];

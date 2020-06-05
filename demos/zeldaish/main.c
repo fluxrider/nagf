@@ -94,7 +94,7 @@ void main(int argc, char * argv[]) {
 
     // gfx
     if(!loading) {
-      dprintf(gfx, "draw %s 0 0\n", tileset_image);
+      dprintf(gfx, "draw %s 16 16 16 16 0 0\n", tileset_image);
     }
     dprintf(gfx, "flush\n");
     sprintf(gmm->msg, "flush fps stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }

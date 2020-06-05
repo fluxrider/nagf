@@ -13,6 +13,7 @@
 #include <libxml/parser.h>
 #include "srr.h"
 #include "evt-util.h"
+#include "gfx-util.h"
 
 void main(int argc, char * argv[]) {
   // connect
@@ -30,6 +31,7 @@ void main(int argc, char * argv[]) {
   xmlChar * tileset_image = NULL;
   int tilewidth;
   int tileheight;
+  int tileset_columns;
   const int layers_capacity = 10;
   xmlChar * layers[layers_capacity];
   int layers_size = 0;
@@ -45,10 +47,13 @@ void main(int argc, char * argv[]) {
       xmlFree(source);
       xmlChar * str_tilewidth = xmlGetProp(tcur, "tilewidth");
       xmlChar * str_tileheight = xmlGetProp(tcur, "tileheight");
+      xmlChar * str_columns = xmlGetProp(tcur, "columns");
       tilewidth = strtol(str_tilewidth, NULL, 10);
       tileheight = strtol(str_tileheight, NULL, 10);
+      tileset_columns = strtol(str_columns, NULL, 10);
       xmlFree(str_tilewidth);
       xmlFree(str_tileheight);
+      xmlFree(str_columns);
       tcur = tcur->xmlChildrenNode;
       while(tcur != NULL) {
         if(xmlStrcmp(tcur->name, "image") == 0) {
@@ -81,15 +86,29 @@ void main(int argc, char * argv[]) {
   // game loop
   bool running = true;
   bool focused = true;
+  bool loading = true;
+  double fps = 0;
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
 
     // gfx
+    if(!loading) {
+      dprintf(gfx, "draw %s 0 0\n", tileset_image);
+    }
     dprintf(gfx, "flush\n");
-    sprintf(gmm->msg, "flush"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    sprintf(gmm->msg, "flush fps stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
     focused = gmm->msg[0];
     running = !gmm->msg[1];
+    int i = 10;
+    if(gmm->msg[i++] != GFX_STAT_FPS) { printf("unexpected stat result, wanted fps\n"); exit(EXIT_FAILURE); }
+    fps = *(int *)&gmm->msg[i] / 1000.0; i+= 4;
+    if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
+    if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
+    int w = *(int *)&gmm->msg[i]; i+= 4;
+    int h = *(int *)&gmm->msg[i]; i+= 4;
+    loading = w == 0;
+    if(loading) { printf("loading progress %f\n", h / 1000.0); }
   }
 
   // disconnect

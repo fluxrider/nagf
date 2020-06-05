@@ -1,3 +1,4 @@
+#pragma once
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 
 #include <stdint.h>

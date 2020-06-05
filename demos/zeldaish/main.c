@@ -28,6 +28,11 @@ void main(int argc, char * argv[]) {
 
   // parse map created with Tiled (https://www.mapeditor.org/)
   xmlChar * tileset_image = NULL;
+  int tilewidth;
+  int tileheight;
+  const int layers_capacity = 10;
+  xmlChar * layers[layers_capacity];
+  int layers_size = 0;
   xmlDoc * map = xmlParseFile("fountain.tmx"); if(!map) { printf("xmlParseFile(fountain.tmx) failed.\n"); exit(EXIT_FAILURE); }
   xmlNode * mcur = xmlDocGetRootElement(map); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
   mcur = mcur->xmlChildrenNode;
@@ -40,8 +45,8 @@ void main(int argc, char * argv[]) {
       xmlFree(source);
       xmlChar * str_tilewidth = xmlGetProp(tcur, "tilewidth");
       xmlChar * str_tileheight = xmlGetProp(tcur, "tileheight");
-      int tilewidth = strtol(str_tilewidth, NULL, 10);
-      int tileheight = strtol(str_tileheight, NULL, 10);
+      tilewidth = strtol(str_tilewidth, NULL, 10);
+      tileheight = strtol(str_tileheight, NULL, 10);
       xmlFree(str_tilewidth);
       xmlFree(str_tileheight);
       tcur = tcur->xmlChildrenNode;
@@ -50,6 +55,17 @@ void main(int argc, char * argv[]) {
           tileset_image = xmlGetProp(tcur, "source");
         }
         tcur = tcur->next;
+      }
+    }
+    // layers
+    else if(xmlStrcmp(mcur->name, "layer") == 0) {
+      xmlNode * node = mcur->xmlChildrenNode;
+      while(node != NULL) {
+        if(xmlStrcmp(node->name, "data") == 0) {
+          if(layers_size == layers_capacity) { printf("layers array full\n"); exit(EXIT_FAILURE); }
+          layers[layers_size++] = xmlNodeListGetString(map, node->xmlChildrenNode, 1);
+        }
+        node = node->next;
       }
     }
     mcur = mcur->next;
@@ -78,6 +94,7 @@ void main(int argc, char * argv[]) {
 
   // disconnect
   xmlFree(tileset_image);
+  for(int i = 0; i < layers_size; i++) { xmlFree(layers[i]); }
   close(snd);
   close(gfx);
   error = srr_disconnect(&gfs); if(error) { printf("srr_disconnect(gfx): %s\n", error); exit(EXIT_FAILURE); }

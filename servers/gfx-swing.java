@@ -190,7 +190,7 @@ class gfx_swing {
               // fonts have sizes after the path
               String [] parts = path.split(" ");
               if(parts.length > 1) {
-                System.out.println("caching a font");
+                System.out.println("caching a font: " + path);
                 path = parts[0];
                 Font font = Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path));
                 Map<Float, Font> fonts = new TreeMap<>();
@@ -202,7 +202,7 @@ class gfx_swing {
               }
               // if not it's an image
               else {
-                System.out.println("caching an image");
+                System.out.println("caching an image: " + path);
                 try {cache.put(path, ImageIO.read(new File(path))); } catch(Exception e) { 
                   System.out.println("error caching image " + e);
                   cache.put(path, e);

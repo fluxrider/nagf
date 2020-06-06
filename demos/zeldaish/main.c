@@ -15,6 +15,8 @@
 #include "evt-util.h"
 #include "gfx-util.h"
 
+// NOTES: cane / elf / key / chest / bottle / fountain / fire / staff / wizard / spell / dragon / heart
+
 void main(int argc, char * argv[]) {
   // connect
   const char * error;

@@ -10,7 +10,7 @@ gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include
 popd
 
 echo '---- compile $demo_name ----'
-gcc -o $demo_name *.c ../../utils/evt-util.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0)
+gcc -o $demo_name *.c ../../utils/*.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0)
 
 echo '---- compile servers ----'
 pushd ../../servers

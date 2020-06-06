@@ -1,5 +1,5 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// gcc -o zeldaish main.c ../../utils/evt-util.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0)
+// gcc -o zeldaish main.c ../../utils/*.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0)
 // LD_LIBRARY_PATH=../../libsrr ./zeldaish
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,6 +14,7 @@
 #include "srr.h"
 #include "evt-util.h"
 #include "gfx-util.h"
+#include "data-util.h"
 
 // NOTES: cane / elf / key / chest / bottle / fountain / fire / staff / wizard / spell / dragon / heart
 

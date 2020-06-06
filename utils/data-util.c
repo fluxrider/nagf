@@ -1,0 +1,75 @@
+// Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
+
+#include <string.h>
+#include "data-util.h"
+
+static size_t _find(struct dict * self, intptr_t key) {
+  // TODO binary search on large array, even smaller threshold if strcmp
+  size_t i = self->size;
+  if(self->key_str) while(i > 0 && strcmp(self->keys[i-1], key) >= 0) i--;
+  else while(i > 0 && self->keys[i-1] >= key) i--;
+  return i;
+  // returns the index where key should be/go
+}
+
+void dict_init(struct dict * self, size_t memcpy_size, bool key_str, bool dup_str) {
+  self->memcpy_size = memcpy_size;
+  self->key_str = key_str;
+  self->dup_str = dup_str;
+  self->capacity = 4;
+  self->size = 0;
+  self->keys = reallocarray(NULL, self->capacity, sizeof(intptr_t));
+  self->vals = reallocarray(NULL, self->capacity, self->memcpy_size? self->memcpy_size : sizeof(intptr_t));
+}
+
+void dict_free(struct dict * self) {
+  free(self->keys);
+  free(self->vals);
+}
+
+void dict_set(struct dict * self, intptr_t key, intptr_t val) {
+  // create a record for this key unless it's already there
+  size_t i = _find(self, key);
+  if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) {
+    // grow
+    if(self->size == self->capacity) {
+      self->capacity *= 2;
+      self->keys = reallocarray(self->keys, self->capacity, sizeof(intptr_t));
+      self->vals = reallocarray(self->vals, self->capacity, self->memcpy_size? self->memcpy_size : sizeof(intptr_t));
+      if(!self->keys || !self->vals) { printf("out of mem\n"); exit(EXIT_FAILURE); };
+    }
+    // dup key
+    if(self->dup_str) key = strdup(key);
+    // shift keys and insert it
+    self->size++;
+    int above = self->size - i - 1;
+    memmove(&self->keys[i+1], &self->keys[i], sizeof(intptr_t) * above);
+    self->keys[i] = key;
+    // shift values
+    if(self->memcpy_size) {
+      uint8_t * p_i = self->vals + self->memcpy_size * i;
+      memmove(p_i + self->memcpy_size, p_i, self->memcpy_size * above);
+    } else {
+      intptr_t * v = self->vals;
+      memmove(&v[i+1], &v[i], sizeof(intptr_t) * above);
+    }
+  }
+  // set value
+  if(self->memcpy_size) {
+    memcpy(self->vals + self->memcpy_size * i, val, self->memcpy_size);
+  } else {
+    ((intptr_t *)self->vals)[i] = val;
+  }
+}
+
+void * dict_get(struct dict * self, intptr_t key) {
+  size_t i = _find(self, key);
+  // not found
+  if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) return NULL;
+  // found
+  if(self->memcpy_size) return self->vals + self->memcpy_size * i;
+  else return &((intptr_t *)self->vals)[i];
+  // returns a pointer to the value stored
+}
+
+// TODO zap

@@ -1,7 +1,10 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
 
+#include <stdio.h>
 #include <string.h>
 #include "data-util.h"
+
+#pragma GCC diagnostic ignored "-Wint-conversion"
 
 static size_t _find(struct dict * self, intptr_t key) {
   // TODO binary search on large array, even smaller threshold if strcmp
@@ -50,7 +53,7 @@ void dict_set(struct dict * self, intptr_t key, intptr_t val) {
       uint8_t * p_i = self->vals + self->memcpy_size * i;
       memmove(p_i + self->memcpy_size, p_i, self->memcpy_size * above);
     } else {
-      intptr_t * v = self->vals;
+      intptr_t * v = (intptr_t *)self->vals;
       memmove(&v[i+1], &v[i], sizeof(intptr_t) * above);
     }
   }

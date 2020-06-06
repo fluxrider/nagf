@@ -31,6 +31,10 @@ void main(int argc, char * argv[]) {
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
 
   // parse map created with Tiled (https://www.mapeditor.org/)
+  struct dict animated_tiles;
+  struct dict blocking_tiles;
+  dict_init(&animated_tiles, 0, false, false);
+  dict_init(&blocking_tiles, 0, false, false);
   xmlChar * tileset_image = NULL;
   int tilewidth;
   int tileheight;
@@ -63,6 +67,13 @@ void main(int argc, char * argv[]) {
       while(tcur != NULL) {
         if(xmlStrcmp(tcur->name, "image") == 0) {
           tileset_image = xmlGetProp(tcur, "source");
+        }
+        else if(xmlStrcmp(tcur->name, "tile") == 0) {
+          xmlChar * id = xmlGetProp(tcur, "id");
+          xmlChar * type = xmlGetProp(tcur, "type");
+          if(type && xmlStrcmp(type, "block") == 0) dict_set(&blocking_tiles, strtol(id, NULL, 10), true);
+          xmlFree(type);
+          xmlFree(id);
         }
         tcur = tcur->next;
       }
@@ -157,6 +168,8 @@ void main(int argc, char * argv[]) {
   }
 
   // disconnect
+  dict_free(&blocking_tiles);
+  dict_free(&animated_tiles);
   xmlFree(tileset_image);
   close(snd);
   close(gfx);

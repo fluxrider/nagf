@@ -98,7 +98,6 @@ void main(int argc, char * argv[]) {
       // draw tilemap
       for(int i = 0; i < layers_size; i++) {
         const char * data = layers[i];
-        printf("data %s\n", data);
         int row = 0, col = 0;
         while(*data) {
           if(*data == '\n' && col > 0) { row++; col = 0; data++; continue; }
@@ -106,13 +105,14 @@ void main(int argc, char * argv[]) {
           int tile = strtol(data, &end, 10);
           // if the number is valid
           if(end != data) {
-            if(tile != 0) tile = tile - 1; // the id 0 is reserved for 'none'
-            int x = tilewidth * col;
-            int y = tileheight * (row + 3); // +3 for the hud
-            int tx = tilewidth * (tile % tileset_columns);
-            int ty = tileheight * (tile / tileset_columns);
-            dprintf(gfx, "draw %s %d %d 16 16 %d %d\n", tileset_image, tx, ty, x, y);
-            printf("%d %d %d %d %d\n", tile, tx, ty, x, y);
+            if(tile != 0) {
+              tile = tile - 1; // the id 0 is reserved for 'none'
+              int x = tilewidth * col;
+              int y = tileheight * (row + 3); // +3 for the hud
+              int tx = tilewidth * (tile % tileset_columns);
+              int ty = tileheight * (tile / tileset_columns);
+              dprintf(gfx, "draw %s %d %d 16 16 %d %d\n", tileset_image, tx, ty, x, y);
+            }
             col++;
             data = end;
           }

@@ -169,7 +169,8 @@ class gfx_swing {
               if(backbuffer == null) {
                 if(W == 0) W = 800;
                 if(H == 0) H = 450;
-                frame.setSize(W, H);
+                panel.setPreferredSize(new Dimension(W, H));
+                frame.pack();
                 frame.setLocationRelativeTo(null);
     
                 // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel

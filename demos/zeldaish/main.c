@@ -94,7 +94,31 @@ void main(int argc, char * argv[]) {
 
     // gfx
     if(!loading) {
-      dprintf(gfx, "draw %s 16 16 16 16 0 0\n", tileset_image);
+      // draw tilemap
+      for(int i = 0; i < layers_size; i++) {
+        const char * data = layers[i];
+        printf("data %s\n", data);
+        int row = 0, col = 0;
+        while(*data) {
+          if(*data == '\n' && col > 0) { row++; col = 0; data++; continue; }
+          char * end;
+          int tile = strtol(data, &end, 10);
+          // if the number is valid
+          if(end != data) {
+            if(tile != 0) tile = tile - 1; // the id 0 is reserved for 'none'
+            int x = tilewidth * col;
+            int y = tileheight * row;
+            int tx = tilewidth * (tile % tileset_columns);
+            int ty = tileheight * (tile / tileset_columns);
+            dprintf(gfx, "draw %s %d %d 16 16 %d %d\n", tileset_image, tx, ty, x, y);
+            printf("%d %d %d %d %d\n", tile, tx, ty, x, y);
+            col++;
+            data = end;
+          }
+          // if it wasn't a number, skip over
+          else { data++; }
+        }
+      }
     }
     dprintf(gfx, "flush\n");
     sprintf(gmm->msg, "flush fps stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }

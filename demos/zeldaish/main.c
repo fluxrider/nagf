@@ -34,8 +34,10 @@ void main(int argc, char * argv[]) {
   int tilewidth;
   int tileheight;
   int tileset_columns;
-  const int layers_capacity = 10;
-  xmlChar * layers[layers_capacity];
+  const int layers_capacity = 2;
+  const int map_col = 16;
+  const int map_row = 11;
+  int layers[layers_capacity][map_row][map_col];
   int layers_size = 0;
   xmlDoc * map = xmlParseFile("fountain.tmx"); if(!map) { printf("xmlParseFile(fountain.tmx) failed.\n"); exit(EXIT_FAILURE); }
   xmlNode * mcur = xmlDocGetRootElement(map); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
@@ -70,7 +72,31 @@ void main(int argc, char * argv[]) {
       while(node != NULL) {
         if(xmlStrcmp(node->name, "data") == 0) {
           if(layers_size == layers_capacity) { printf("layers array full\n"); exit(EXIT_FAILURE); }
-          layers[layers_size++] = xmlNodeListGetString(map, node->xmlChildrenNode, 1);
+          int index = layers_size++;
+          xmlChar * data = xmlNodeListGetString(map, node->xmlChildrenNode, 1);
+          char * p = data;
+          int row = 0, col = 0;
+          while(*p) {
+            // change row
+            if(*p == '\n' && col > 0) {
+              row++;
+              col = 0;
+              p++;
+            } else {
+              char * end;
+              int tile = strtol(p, &end, 10);
+              // if the number is valid, store it
+              if(end != p) {
+                if(row >= map_row) { printf("too many row in map data\n"); exit(EXIT_FAILURE); }
+                if(col >= map_col) { printf("too many col in map data\n"); exit(EXIT_FAILURE); }
+                layers[index][row][col++] = tile;
+                p = end;
+              }
+              // if it wasn't a number, skip over
+              else { p++; }
+            }
+          }
+          xmlFree(data);
         }
         node = node->next;
       }
@@ -99,27 +125,18 @@ void main(int argc, char * argv[]) {
     if(!loading) {
       // draw tilemap
       for(int i = 0; i < layers_size; i++) {
-        const char * data = layers[i];
-        int row = 0, col = 0;
-        while(*data) {
-          if(*data == '\n' && col > 0) { row++; col = 0; data++; continue; }
-          char * end;
-          int tile = strtol(data, &end, 10);
-          // if the number is valid
-          if(end != data) {
+        for(int row = 0; row < map_row; row++) {
+          for(int col = 0; col < map_col; col++) {
+            int tile = layers[i][row][col];
             if(tile != 0) {
-              tile = tile - 1; // the id 0 is reserved for 'none'
+              tile = tile - 1;
               int x = tilewidth * col;
               int y = tileheight * (row + 3); // +3 for the hud
               int tx = tilewidth * (tile % tileset_columns);
               int ty = tileheight * (tile / tileset_columns);
               dprintf(gfx, "draw %s %d %d 16 16 %d %d\n", tileset_image, tx, ty, x, y);
             }
-            col++;
-            data = end;
           }
-          // if it wasn't a number, skip over
-          else { data++; }
         }
       }
     }
@@ -140,7 +157,6 @@ void main(int argc, char * argv[]) {
 
   // disconnect
   xmlFree(tileset_image);
-  for(int i = 0; i < layers_size; i++) { xmlFree(layers[i]); }
   close(snd);
   close(gfx);
   error = srr_disconnect(&gfs); if(error) { printf("srr_disconnect(gfx): %s\n", error); exit(EXIT_FAILURE); }

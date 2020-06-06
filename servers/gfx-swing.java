@@ -19,11 +19,21 @@ class gfx_swing {
 
   private static int W, H;
   private static boolean focused, quitting;
+  private static BufferedImage backbuffer;
+  private static BufferedImage frontbuffer;
+  private static Graphics2D g;
+  private static Graphics2D _g;
 
   // main
   public static void main(String[] args) throws Exception {
     String shm_path = args[0];
-    
+
+    // synchronization
+    Semaphore should_quit = new Semaphore(0);
+    Semaphore flush_pre = new Semaphore(0);
+    Semaphore flush_post = new Semaphore(0);
+    Semaphore queue_list = new Semaphore(0);
+
     // smooth scaling, smooth text
     Map<RenderingHints.Key, Object> hints;
     Map<RenderingHints.Key, Object> hints_low;
@@ -41,19 +51,6 @@ class gfx_swing {
     hints_low.put(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
     hints_low.put(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_SPEED);
     hints_low.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-
-    // create window centered in screen
-    W = 800;
-    H = 450;
-    JFrame frame = new JFrame();
-    frame.setSize(W, H);
-    frame.setLocationRelativeTo(null);
-    
-    // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
-    BufferedImage backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
-    BufferedImage frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
-    Graphics2D g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints);
-    Graphics2D _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
 
     // the panel scale-paints the front buffer on itself on each repaint call
     JPanel panel = new JPanel() {
@@ -87,17 +84,10 @@ class gfx_swing {
         }
       }
     };
-
-    // synchronization
-    Semaphore should_quit = new Semaphore(0);
-    Semaphore flush_pre = new Semaphore(0);
-    Semaphore flush_post = new Semaphore(0);
-    Semaphore queue_list = new Semaphore(0);
-
-    // show window TODO wait for first frame and title before doing this
+    JFrame frame = new JFrame();
+    frame.setContentPane(panel);
     focused = false;
     quitting = false;
-    frame.setContentPane(panel);
     frame.addWindowFocusListener(new WindowFocusListener() {
       public void windowLostFocus(WindowEvent e) {
         System.out.println(e);
@@ -134,7 +124,6 @@ class gfx_swing {
         System.out.println(e);
       }
     });
-    frame.setVisible(true);
 
     // resources
     Map<String, Object> cache = new TreeMap<>();
@@ -176,12 +165,34 @@ class gfx_swing {
             queue_list.acquire();
             synchronized(fifo_queue) { command = fifo_queue.remove(); }
             if(command.equals("flush")) {
+              // finish setting up window on first flush
+              if(backbuffer == null) {
+                if(W == 0) W = 800;
+                if(H == 0) H = 450;
+                frame.setSize(W, H);
+                frame.setLocationRelativeTo(null);
+    
+                // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
+                backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+                frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+                g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints);
+                _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
+
+                // show window
+                frame.setVisible(true);
+              }
+
               // on flush, stop handling any more messages until srr thread completes the flush
               flush_pre.release();
               flush_post.acquire();
             } else if(command.startsWith("title ")) {
               System.out.println("setting title");
               frame.setTitle(command.substring(6));
+            } else if(command.startsWith("window ")) {
+              System.out.println("setting window size");
+              String [] dim = command.substring(7).split(" ");
+              W = Integer.parseInt(dim[0]);
+              H = Integer.parseInt(dim[1]);
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
               // fonts have sizes after the path

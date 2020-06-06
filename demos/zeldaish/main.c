@@ -81,6 +81,7 @@ void main(int argc, char * argv[]) {
   // game setup
   dprintf(snd, "stream bg1.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
+  dprintf(gfx, "window 256 224\n");
   dprintf(gfx, "cache %s\n", tileset_image);
 
   // game loop
@@ -107,7 +108,7 @@ void main(int argc, char * argv[]) {
           if(end != data) {
             if(tile != 0) tile = tile - 1; // the id 0 is reserved for 'none'
             int x = tilewidth * col;
-            int y = tileheight * row;
+            int y = tileheight * (row + 3); // +3 for the hud
             int tx = tilewidth * (tile % tileset_columns);
             int ty = tileheight * (tile / tileset_columns);
             dprintf(gfx, "draw %s %d %d 16 16 %d %d\n", tileset_image, tx, ty, x, y);

@@ -54,9 +54,6 @@ class gfx_swing {
     BufferedImage frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
     Graphics2D g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints);
     Graphics2D _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
-    Graphics2D g_clear = (Graphics2D) backbuffer.getGraphics();
-    g_clear.setComposite(AlphaComposite.getInstance(AlphaComposite.CLEAR, 0.0f));
-    g_clear.setColor(new Color(0, 0, 0, 0));
 
     // the panel scale-paints the front buffer on itself on each repaint call
     JPanel panel = new JPanel() {
@@ -279,11 +276,6 @@ class gfx_swing {
                   synchronized (frontbuffer) { _g.drawImage(backbuffer, 0, 0, null); }
                   panel.repaint();
                   Thread.yield();
-                  // clear backbuffer
-                  g_clear.fillRect(0, 0, W, H);
-                  // TMP why isn't g_clear working?
-                  g.setColor(Color.WHITE);
-                  g.fillRect(0, 0, W, H);
                 }
                 // fps
                 long t1 = System.currentTimeMillis();

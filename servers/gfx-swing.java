@@ -8,6 +8,7 @@ import java.awt.event.*;
 import java.awt.image.*;
 import java.util.*;
 import java.util.List;
+import java.util.stream.*;
 import javax.swing.*;
 import libsrr.*;
 import java.nio.*;
@@ -232,7 +233,12 @@ class gfx_swing {
                 int h = (int)Double.parseDouble(parts[i++]);
                 int x = (int)Double.parseDouble(parts[i++]);
                 int y = (int)Double.parseDouble(parts[i++]);
-                g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+                boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
+                if(mirror_x) {
+                  g.drawImage((BufferedImage)cache.get(path), x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
+                } else {
+                  g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+                }
               }
             } else if(command.startsWith("text ")) {
               String [] parts = command.split(" ");

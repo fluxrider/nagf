@@ -230,7 +230,7 @@ void main(int argc, char * argv[]) {
           }
         }
       }
-      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f\n", 0, facing_index * 24, px, py);
+      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", 0, facing_index * 24, px, py, facing_mirror? "mx" : "");
     }
     // draw player
     dprintf(gfx, "flush\n");

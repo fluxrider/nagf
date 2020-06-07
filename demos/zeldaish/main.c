@@ -182,6 +182,7 @@ void main(int argc, char * argv[]) {
   double px = 0;
   double py = 0;
   double delta_time = 0;
+  double delta_time_worst = 0;
   double step_per_seconds = 100;
   int facing_index = 0;
   bool facing_mirror = false;
@@ -248,8 +249,9 @@ void main(int argc, char * argv[]) {
     if(gmm->msg[i++] != GFX_STAT_DLT) { printf("unexpected stat result, wanted delta time\n"); exit(EXIT_FAILURE); }
     tick += *(int *)&gmm->msg[i];
     delta_time = *(int *)&gmm->msg[i] / 1000.0;
+    if(tick > 1000 && delta_time > delta_time_worst) delta_time_worst = delta_time;
     i+= 4;
-    //printf("%d\n", (int)(delta_time * 1000));
+    printf("%d\t%d\n", (int)(delta_time_worst * 1000), (int)(delta_time * 1000));
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
     int w = *(int *)&gmm->msg[i]; i+= 4;

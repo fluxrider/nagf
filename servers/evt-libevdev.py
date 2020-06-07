@@ -144,7 +144,7 @@ def handle_device(path):
   global histokey
   try:
     fd = open(path, 'rb')
-    fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)
+    #fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK) # this caused the whole server to hiccup
     device = libevdev.Device(fd)
     print(f'Listening to events of {device.name}.')
     # identify any virtual gamepad mapping that involves this device

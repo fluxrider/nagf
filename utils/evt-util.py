@@ -172,7 +172,7 @@ def u8_to_s8(u8):
 
 class Evt:
   def __init__(self, name):
-    self.client = srr.srr(name)
+    self.client = srr.srr(name, length=256)
     self.data = None
     self.__cached_axis_and_triggers = None
 

@@ -5,9 +5,13 @@ import time
 import importlib
 Evt = importlib.import_module('utils.evt-util')
 
-with Evt.Evt('/evt-libevdev') as evt:
+with Evt.Evt('/test-evt') as evt:
   command = ''
+  t0 = time.time()
   while True:
+    t1 = time.time()
+    print(int((t1 - t0) * 1000))
+    t0 = t1
     evt.poll(command)
     if evt.pressed(Evt.UP): print("UP just pressed")
     if evt.released(Evt.F):

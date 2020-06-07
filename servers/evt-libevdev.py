@@ -1,5 +1,5 @@
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-# PYTHONPATH=. LD_LIBRARY_PATH=libsrr python -B ./servers/evt-libevdev.py
+# PYTHONPATH=. LD_LIBRARY_PATH=libsrr python -B ./servers/evt-libevdev.py /test-evt example.map
 
 # A libevdev-based input devices event listener.
 # - first use it in 'mapping' mode (i.e. without arg) to spew a mapping file
@@ -326,7 +326,7 @@ def handle_client():
   global joystick_only
   global histokey
   try:
-    with srr.srr(shm_path, is_server=True) as server:
+    with srr.srr(shm_path, length=256, is_server=True) as server:
       while(True):
         data = server.receive()
         command = "none"

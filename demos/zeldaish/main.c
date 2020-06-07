@@ -237,9 +237,9 @@ void main(int argc, char * argv[]) {
           }
         }
       }
+      // draw player
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py, facing_mirror? "mx" : "");
     }
-    // draw player
     dprintf(gfx, "flush\n");
     sprintf(gmm->msg, "flush delta stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
     focused = gmm->msg[0];

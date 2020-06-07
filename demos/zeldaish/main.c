@@ -1,5 +1,5 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
-// gcc -o zeldaish main.c ../../utils/*.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0)
+// gcc -o zeldaish main.c ../../utils/*.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0) -lm
 // LD_LIBRARY_PATH=../../libsrr ./zeldaish
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,6 +12,7 @@
 #include <time.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
+#include <math.h>
 #include "srr.h"
 #include "evt-util.h"
 #include "gfx-util.h"
@@ -185,10 +186,15 @@ void main(int argc, char * argv[]) {
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
-    if(evt_held(&evt, G0_DOWN) || evt_held(&evt, S)) py += delta_time * step_per_seconds;
-    if(evt_held(&evt, G0_UP) || evt_held(&evt, W)) py -= delta_time * step_per_seconds;
-    if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, A)) px += delta_time * step_per_seconds;
-    if(evt_held(&evt, G0_LEFT) || evt_held(&evt, D)) px -= delta_time * step_per_seconds;
+    struct evt_axis_and_triggers_normalized axis = evt_deadzoned(evt_axis_and_triggers(&evt, 0), .2, .2);
+    printf("%f\n", axis.lx);
+    if(evt_held(&evt, G0_DOWN) || evt_held(&evt, K_S)) axis.ly = fmin(1, axis.ly + 1);
+    if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W)) axis.ly = fmax(-1, axis.ly - 1);
+    if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D)) axis.lx = fmin(1, axis.lx + 1);
+    if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A)) axis.lx = fmax(-1, axis.lx - 1);
+    px += delta_time * step_per_seconds * axis.lx;
+    py += delta_time * step_per_seconds * axis.ly;
+    running &= !evt_released(&evt, K_ESC);
 
     // gfx
     if(!loading) {
@@ -224,10 +230,11 @@ void main(int argc, char * argv[]) {
     dprintf(gfx, "flush\n");
     sprintf(gmm->msg, "flush delta stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
     focused = gmm->msg[0];
-    running = !gmm->msg[1];
+    running &= !gmm->msg[1];
     int i = 10;
     if(gmm->msg[i++] != GFX_STAT_DLT) { printf("unexpected stat result, wanted delta time\n"); exit(EXIT_FAILURE); }
     delta_time = *(int *)&gmm->msg[i] / 1000.0; i+= 4;
+    //printf("%d\n", (int)(delta_time * 1000));
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
     int w = *(int *)&gmm->msg[i]; i+= 4;

@@ -91,11 +91,11 @@ class gfx_swing {
     frame.addWindowFocusListener(new WindowFocusListener() {
       public void windowLostFocus(WindowEvent e) {
         System.out.println(e);
-        focused = true;
+        focused = false;
       }
       public void windowGainedFocus(WindowEvent e) {
         System.out.println(e);
-        focused = false;
+        focused = true;
       }
     });
     frame.addWindowListener(new WindowListener() {
@@ -268,7 +268,7 @@ class gfx_swing {
       public void run() {
         try(srr srr = new srr(shm_path, 8192, true, false, 3)) {
           long t0 = System.currentTimeMillis();
-          double fps = 0;
+          long delta_time = 0;
           while(true) {
             // sync with client
             String [] sync = srr.as_string(srr.receive()).toString().split(" ");
@@ -289,15 +289,15 @@ class gfx_swing {
                   panel.repaint();
                   Thread.yield();
                 }
-                // fps
+                // delta_time
                 long t1 = System.currentTimeMillis();
-                fps = 1000.0 / (t1 - t0);
+                delta_time = t1 - t0;
                 t0 = t1;
                 // let fifo resume
                 flush_post.release();
-              } else if(command.equals("fps")) {
+              } else if(command.equals("delta")) {
                 srr.msg.put((byte)3);
-                srr.msg.putInt((int)(fps * 1000));
+                srr.msg.putInt((int)delta_time);
               } else if(command.equals("stat")) {
                 String path = sync[i++];
                 Object res = cache.get(path);

@@ -27,7 +27,8 @@ public class srr implements AutoCloseable {
     this.opaque = srr.init(name, length, is_server, use_multi_client_lock, timeout);
     if(this.opaque instanceof String) throw new RuntimeException(this.opaque.toString());
     this.msg = srr.get_msg_ptr(this.opaque);
-    this.length = srr.get_length_ptr(this.opaque).order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+    this.msg.order(ByteOrder.nativeOrder());
+    this.length = srr.get_length_ptr(this.opaque).order(ByteOrder.nativeOrder()).asIntBuffer();
   }
 
   public void close() {

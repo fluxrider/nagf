@@ -172,15 +172,23 @@ void main(int argc, char * argv[]) {
   dprintf(gfx, "title %s\n", argv[0]);
   dprintf(gfx, "window 256 224\n");
   dprintf(gfx, "cache %s\n", tileset_image);
+  dprintf(gfx, "cache princess.png\n");
 
   // game loop
   bool running = true;
   bool focused = true;
   bool loading = true;
-  double fps = 0;
+  double px = 0;
+  double py = 0;
+  double delta_time = 0;
+  double step_per_seconds = 100;
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
+    if(evt_held(&evt, G0_DOWN) || evt_held(&evt, S)) py += delta_time * step_per_seconds;
+    if(evt_held(&evt, G0_UP) || evt_held(&evt, W)) py -= delta_time * step_per_seconds;
+    if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, A)) px += delta_time * step_per_seconds;
+    if(evt_held(&evt, G0_LEFT) || evt_held(&evt, D)) px -= delta_time * step_per_seconds;
 
     // gfx
     if(!loading) {
@@ -197,10 +205,7 @@ void main(int argc, char * argv[]) {
                 // TODO tick based, not time based
                 uint64_t t = currentTimeMillis() % anim->total_duration;
                 for(int i = 0; i < anim->size; i++) {
-                  if(t < anim->durations[i]) {
-                    tile = anim->ids[i];
-                    break;
-                  }
+                  if(t < anim->durations[i]) { tile = anim->ids[i]; break; }
                   t-= anim->durations[i];
                 }
               }
@@ -213,14 +218,16 @@ void main(int argc, char * argv[]) {
           }
         }
       }
+      dprintf(gfx, "draw princess.png 0 0 14 24 %f %f\n", px, py);
     }
+    // draw player
     dprintf(gfx, "flush\n");
-    sprintf(gmm->msg, "flush fps stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    sprintf(gmm->msg, "flush delta stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
     focused = gmm->msg[0];
     running = !gmm->msg[1];
     int i = 10;
-    if(gmm->msg[i++] != GFX_STAT_FPS) { printf("unexpected stat result, wanted fps\n"); exit(EXIT_FAILURE); }
-    fps = *(int *)&gmm->msg[i] / 1000.0; i+= 4;
+    if(gmm->msg[i++] != GFX_STAT_DLT) { printf("unexpected stat result, wanted delta time\n"); exit(EXIT_FAILURE); }
+    delta_time = *(int *)&gmm->msg[i] / 1000.0; i+= 4;
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
     int w = *(int *)&gmm->msg[i]; i+= 4;

@@ -7,6 +7,7 @@ echo '---- compile libsrr ----'
 pushd ../../libsrr
 gcc -fPIC -shared -o libsrr.so srr.c backend_shm.c -lrt -pthread
 gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include/linux -o libsrrjni.so srr.jni.c -lrt -pthread -L. -lsrr
+javac -classpath .. srr.java
 popd
 
 echo '---- compile $demo_name ----'

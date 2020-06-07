@@ -183,17 +183,24 @@ void main(int argc, char * argv[]) {
   double py = 0;
   double delta_time = 0;
   double step_per_seconds = 100;
+  int facing_index = 0;
+  bool facing_mirror = false;
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
     struct evt_axis_and_triggers_normalized axis = evt_deadzoned(evt_axis_and_triggers(&evt, 0), .2, .2);
+    running &= !evt_released(&evt, K_ESC);
+    // walking
     if(evt_held(&evt, G0_DOWN) || evt_held(&evt, K_S)) axis.ly = fmin(1, axis.ly + 1);
     if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W)) axis.ly = fmax(-1, axis.ly - 1);
     if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D)) axis.lx = fmin(1, axis.lx + 1);
     if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A)) axis.lx = fmax(-1, axis.lx - 1);
     px += delta_time * step_per_seconds * axis.lx;
     py += delta_time * step_per_seconds * axis.ly;
-    running &= !evt_released(&evt, K_ESC);
+    if(axis.lx != 0 || axis.ly != 0) {
+      facing_index = (fabs(axis.ly) > fabs(axis.lx))? ((axis.ly < 0)? 2 : 0) : 1;
+      facing_mirror = fabs(axis.ly) <= fabs(axis.lx) && axis.lx < 0;
+    }
 
     // gfx
     if(!loading) {
@@ -223,7 +230,7 @@ void main(int argc, char * argv[]) {
           }
         }
       }
-      dprintf(gfx, "draw princess.png 0 0 14 24 %f %f\n", px, py);
+      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f\n", 0, facing_index * 24, px, py);
     }
     // draw player
     dprintf(gfx, "flush\n");

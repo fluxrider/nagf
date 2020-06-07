@@ -189,6 +189,7 @@ void main(int argc, char * argv[]) {
   int facing_frame = 0;
   uint64_t walking_t0;
   uint64_t tick = 0;
+  const int walking_period = 300;
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
@@ -202,9 +203,19 @@ void main(int argc, char * argv[]) {
     px += delta_time * step_per_seconds * axis.lx;
     py += delta_time * step_per_seconds * axis.ly;
     if(axis.lx != 0 || axis.ly != 0) {
-      facing_index = (fabs(axis.ly) > fabs(axis.lx))? ((axis.ly < 0)? 2 : 0) : 1;
-      facing_mirror = fabs(axis.ly) <= fabs(axis.lx) && axis.lx < 0;
-      facing_frame = ((tick - walking_t0) % 300 < 150)? 1 : 0;
+      // up/down
+      if(fabs(axis.ly) > fabs(axis.lx)) {
+        facing_index = (axis.ly < 0)? 2 : 0;
+        // double up number of animation frame by mirroring half the time
+        facing_mirror = (tick - walking_t0) % (walking_period * 2) < walking_period;
+      }
+      // left/right
+      else {
+        facing_index = 1;
+        facing_mirror = axis.lx < 0; // left is right mirrored
+      }
+      // two-frame animation
+      facing_frame = ((tick - walking_t0) % walking_period < walking_period/2)? 1 : 0;
     } else {
       facing_frame = 0;
       walking_t0 = tick;
@@ -251,7 +262,7 @@ void main(int argc, char * argv[]) {
     delta_time = *(int *)&gmm->msg[i] / 1000.0;
     if(tick > 1000 && delta_time > delta_time_worst) delta_time_worst = delta_time;
     i+= 4;
-    printf("%d\t%d\n", (int)(delta_time_worst * 1000), (int)(delta_time * 1000));
+    //printf("%d\t%d\n", (int)(delta_time_worst * 1000), (int)(delta_time * 1000));
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
     int w = *(int *)&gmm->msg[i]; i+= 4;

@@ -1,51 +1,51 @@
 Each test will take 10 seconds.
 The higher numbers the better.
 Launch C server
-C                       : 52712.300000
-python                  : 37147.6
-java                    : 92361
-C      w/ mutex         : 76532.700000
-python w/ mutex         : 30250.4
-java   w/ mutex         : 67200
-C      w/ mutex, bigmsg : 40142.800000
-python w/ mutex, bigmsg : 33199.9
-java   w/ mutex, bigmsg : 44630
-python w/ bigmsg        : 36302.5
-java   w/ bigmsg        : 40697
-3 x C  w/ mutex         : 14226.700000
-10463.200000
-13250.200000
+C                       : 45471.700000
+python                  : 39326.1
+java                    : 45410
+C      w/ mutex         : 44862.000000
+python w/ mutex         : 37573.9
+java   w/ mutex         : 45085
+C      w/ mutex, bigmsg : 43620.400000
+python w/ mutex, bigmsg : 34832.5
+java   w/ mutex, bigmsg : 39019
+python w/ bigmsg        : 37418.1
+java   w/ bigmsg        : 44887
+3 x C  w/ mutex         : 10836.100000
+6123.200000
+22461.200000
 srr_receive: srr_shm_wait:125: Connection timed out
 Launch python server
-C                       : 40001.600000
-python                  : 19284.0
-java                    : 45440
-C      w/ mutex         : 46638.200000
-python w/ mutex         : 18853.3
-java   w/ mutex         : 42513
-C      w/ mutex, bigmsg : 4816.100000
-python w/ mutex, bigmsg : 4102.2
-java   w/ mutex, bigmsg : 4671
-python w/ bigmsg        : 4272.6
-java   w/ bigmsg        : 4947
-3 x C  w/ mutex         : 10151.900000
-9928.900000
-10995.900000
+C                       : 44385.300000
+python                  : 30513.1
+java                    : 41210
+C      w/ mutex         : 48101.300000
+python w/ mutex         : 24190.4
+java   w/ mutex         : 41308
+C      w/ mutex, bigmsg : 41218.800000
+python w/ mutex, bigmsg : 17034.5
+java   w/ mutex, bigmsg : 38776
+python w/ bigmsg        : 19792.3
+java   w/ bigmsg        : 45690
+3 x C  w/ mutex         : 9183.000000
+11643.300000
+11564.700000
 Launch java server
-C                       : 46166.000000
-python                  : 36770.2
-java                    : 59406
-C      w/ mutex         : 46229.400000
-python w/ mutex         : 37125.2
-java   w/ mutex         : 41886
-C      w/ mutex, bigmsg : 41195.200000
-python w/ mutex, bigmsg : 34108.4
-java   w/ mutex, bigmsg : 50454
-python w/ bigmsg        : 32719.1
-java   w/ bigmsg        : 53521
-3 x C  w/ mutex         : 10443.500000
-12574.900000
-13601.200000
+C                       : 59256.300000
+python                  : 35588.3
+java                    : 53558
+C      w/ mutex         : 62620.200000
+python w/ mutex         : 32202.3
+java   w/ mutex         : 57474
+C      w/ mutex, bigmsg : 47786.400000
+python w/ mutex, bigmsg : 32836.2
+java   w/ mutex, bigmsg : 48830
+python w/ bigmsg        : 35756.7
+java   w/ bigmsg        : 50364
+3 x C  w/ mutex         : 12612.800000
+10741.600000
+12484.400000
 Linux fanatic 5.6.13-arch1-1 #1 SMP PREEMPT Thu, 14 May 2020 06:52:53 +0000 x86_64 GNU/Linux
 Architecture:                    x86_64
 CPU op-mode(s):                  32-bit, 64-bit
@@ -63,10 +63,10 @@ Model:                           2
 Model name:                      AMD FX(tm)-8320 Eight-Core Processor
 Stepping:                        0
 Frequency boost:                 enabled
-CPU MHz:                         1406.219
+CPU MHz:                         1480.276
 CPU max MHz:                     3500.0000
 CPU min MHz:                     1400.0000
-BogoMIPS:                        7034.26
+BogoMIPS:                        7034.92
 Virtualization:                  AMD-V
 L1d cache:                       64 KiB
 L1i cache:                       256 KiB

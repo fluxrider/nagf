@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <time.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 #include "srr.h"
@@ -17,6 +18,19 @@
 #include "data-util.h"
 
 // NOTES: cane / elf / key / chest / bottle / fountain / fire / staff / wizard / spell / dragon / heart
+
+uint64_t currentTimeMillis() {
+  struct timespec tp;
+  if(clock_gettime(CLOCK_MONOTONIC, &tp) == -1) { perror("read"); exit(1); }
+  return tp.tv_sec * 1000 + tp.tv_nsec / 1000000;
+}
+
+struct tile_animation {
+  int size;
+  int * ids;
+  uint64_t * durations;
+  uint64_t total_duration;
+};
 
 void main(int argc, char * argv[]) {
   // connect
@@ -33,7 +47,7 @@ void main(int argc, char * argv[]) {
   // parse map created with Tiled (https://www.mapeditor.org/)
   struct dict animated_tiles;
   struct dict blocking_tiles;
-  dict_init(&animated_tiles, 0, false, false);
+  dict_init(&animated_tiles, sizeof(struct tile_animation), false, false);
   dict_init(&blocking_tiles, 0, false, false);
   xmlChar * tileset_image = NULL;
   int tilewidth;
@@ -70,9 +84,44 @@ void main(int argc, char * argv[]) {
         }
         else if(xmlStrcmp(tcur->name, "tile") == 0) {
           xmlChar * id = xmlGetProp(tcur, "id");
+          // store blocking tiles
           xmlChar * type = xmlGetProp(tcur, "type");
           if(type && xmlStrcmp(type, "block") == 0) dict_set(&blocking_tiles, strtol(id, NULL, 10), true);
           xmlFree(type);
+          // store animations
+          xmlNode * acur = tcur->xmlChildrenNode;
+          while(acur != NULL) {
+            if(xmlStrcmp(acur->name, "animation") == 0) {
+              // count how many frames
+              struct tile_animation anim = {0};
+              xmlNode * fcur = acur->xmlChildrenNode;
+              while(fcur != NULL) {
+                if(xmlStrcmp(fcur->name, "frame") == 0) anim.size++;
+                fcur = fcur->next;
+              }
+              // alloc and store in dictionary
+              anim.ids = malloc(sizeof(int) * anim.size);
+              anim.durations = malloc(sizeof(uint64_t) * anim.size);
+              // populate ids/durations
+              fcur = acur->xmlChildrenNode;
+              int i = 0;
+              while(fcur != NULL) {
+                if(xmlStrcmp(fcur->name, "frame") == 0) {
+                  xmlChar * t = xmlGetProp(fcur, "tileid");
+                  xmlChar * d = xmlGetProp(fcur, "duration");
+                  anim.ids[i] = strtol(t, NULL, 10);
+                  anim.durations[i] = strtol(d, NULL, 10);
+                  anim.total_duration += anim.durations[i];
+                  i++;
+                  xmlFree(d);
+                  xmlFree(t);
+                }
+                fcur = fcur->next;
+              }
+              dict_set(&animated_tiles, strtol(id, NULL, 10), (intptr_t)&anim);
+            }
+            acur = acur->next;
+          }
           xmlFree(id);
         }
         tcur = tcur->next;
@@ -142,6 +191,19 @@ void main(int argc, char * argv[]) {
             int tile = layers[i][row][col];
             if(tile != 0) {
               tile = tile - 1;
+              // handle animated tiles
+              struct tile_animation * anim = dict_get(&animated_tiles, tile);
+              if(anim) {
+                // TODO tick based, not time based
+                uint64_t t = currentTimeMillis() % anim->total_duration;
+                for(int i = 0; i < anim->size; i++) {
+                  if(t < anim->durations[i]) {
+                    tile = anim->ids[i];
+                    break;
+                  }
+                  t-= anim->durations[i];
+                }
+              }
               int x = tilewidth * col;
               int y = tileheight * (row + 3); // +3 for the hud
               int tx = tilewidth * (tile % tileset_columns);

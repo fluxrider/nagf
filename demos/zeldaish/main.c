@@ -46,6 +46,8 @@ void main(int argc, char * argv[]) {
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
 
   // parse map created with Tiled (https://www.mapeditor.org/)
+  double px = 0;
+  double py = 0;
   struct dict animated_tiles;
   struct dict blocking_tiles;
   dict_init(&animated_tiles, sizeof(struct tile_animation), false, false);
@@ -163,6 +165,25 @@ void main(int argc, char * argv[]) {
         node = node->next;
       }
     }
+    // object
+    else if(xmlStrcmp(mcur->name, "objectgroup") == 0) {
+      xmlNode * node = mcur->xmlChildrenNode;
+      while(node != NULL) {
+        if(xmlStrcmp(node->name, "object") == 0) {
+          xmlChar * type = xmlGetProp(node, "type");
+          if(type && xmlStrcmp(type, "spawn") == 0) {
+            xmlChar * x = xmlGetProp(node, "x");
+            xmlChar * y = xmlGetProp(node, "y");
+            px = strtol(x, NULL, 10);
+            py = strtol(y, NULL, 10);
+            xmlFree(y);
+            xmlFree(x);
+          }
+          xmlFree(type);
+        }
+        node = node->next;
+      }
+    }
     mcur = mcur->next;
   }
   xmlFreeDoc(map);
@@ -179,8 +200,6 @@ void main(int argc, char * argv[]) {
   bool running = true;
   bool focused = true;
   bool loading = true;
-  double px = 0;
-  double py = 0;
   double delta_time = 0;
   double delta_time_worst = 0;
   double step_per_seconds = 100;

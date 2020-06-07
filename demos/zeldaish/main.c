@@ -185,6 +185,9 @@ void main(int argc, char * argv[]) {
   double step_per_seconds = 100;
   int facing_index = 0;
   bool facing_mirror = false;
+  int facing_frame = 0;
+  uint64_t walking_t0;
+  uint64_t tick = 0;
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
@@ -200,6 +203,10 @@ void main(int argc, char * argv[]) {
     if(axis.lx != 0 || axis.ly != 0) {
       facing_index = (fabs(axis.ly) > fabs(axis.lx))? ((axis.ly < 0)? 2 : 0) : 1;
       facing_mirror = fabs(axis.ly) <= fabs(axis.lx) && axis.lx < 0;
+      facing_frame = ((tick - walking_t0) % 300 < 150)? 1 : 0;
+    } else {
+      facing_frame = 0;
+      walking_t0 = tick;
     }
 
     // gfx
@@ -230,7 +237,7 @@ void main(int argc, char * argv[]) {
           }
         }
       }
-      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", 0, facing_index * 24, px, py, facing_mirror? "mx" : "");
+      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py, facing_mirror? "mx" : "");
     }
     // draw player
     dprintf(gfx, "flush\n");
@@ -239,7 +246,9 @@ void main(int argc, char * argv[]) {
     running &= !gmm->msg[1];
     int i = 10;
     if(gmm->msg[i++] != GFX_STAT_DLT) { printf("unexpected stat result, wanted delta time\n"); exit(EXIT_FAILURE); }
-    delta_time = *(int *)&gmm->msg[i] / 1000.0; i+= 4;
+    tick += *(int *)&gmm->msg[i];
+    delta_time = *(int *)&gmm->msg[i] / 1000.0;
+    i+= 4;
     //printf("%d\n", (int)(delta_time * 1000));
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }

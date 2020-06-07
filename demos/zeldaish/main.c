@@ -169,7 +169,7 @@ void main(int argc, char * argv[]) {
   if(!tileset_image) { printf("did not find anything tileset image while parsing map\n"); exit(EXIT_FAILURE); }
 
   // game setup
-  dprintf(snd, "stream bg1.ogg\n");
+  dprintf(snd, "stream bg.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
   dprintf(gfx, "window 256 224\n");
   dprintf(gfx, "cache %s\n", tileset_image);

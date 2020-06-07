@@ -165,9 +165,9 @@ enum {
 };
 
 struct evt_mouse {
-  int8_t x;
-  int8_t y;
-  int8_t wheel;
+  int8_t dx;
+  int8_t dy;
+  int8_t dwheel;
 };
 
 struct evt_axis_and_triggers_raw {

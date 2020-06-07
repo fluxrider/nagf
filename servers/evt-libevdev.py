@@ -32,7 +32,7 @@ G_KEY_COUNT = 17
 M_KEY_COUNT = 3
 G_AXIS_AND_TRIGGER_COUNT = 6
 if mapping_count > G_COUNT: raise RuntimeError("Too many virtual gamepad mapping specified")
-
+print(f'Mapping count: {mapping_count}')
 buttons = ['R1', 'R2', 'R3', 'L1', 'L2', 'L3', 'START', 'HOME', 'SELECT', 'NORTH', 'SOUTH', 'EAST', 'WEST', 'UP', 'DOWN', 'LEFT', 'RIGHT']
 axes = ['LX', 'LY', 'RX', 'RY']
 triggers = ['LT', 'RT']

@@ -241,25 +241,34 @@ void main(int argc, char * argv[]) {
       // tentative new position
       double nx = px + delta_time * step_per_seconds * axis.lx;
       double ny = py + delta_time * step_per_seconds * axis.ly;
+      // test dimensions separately to allow sliding
       // simply test the corners, and assume speed is low so I don't need collision response
-      bool blocked = false;
-      for(int i = 0, x = nx + collision_x; !blocked && i < 2; i++, x += collision_w) {
-        for(int j = 0, y = ny + collision_y; !blocked && j < 2; j++, y += collision_h) {
-          blocked |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+      bool blocked_x = false;
+      for(int i = 0, x = nx + collision_x; !blocked_x && i < 2; i++, x += collision_w) {
+        for(int j = 0, y = py + collision_y; !blocked_x && j < 2; j++, y += collision_h) {
+          blocked_x |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
           int col = (int)(x / TS);
           int row = (int)((y - HUD_H) / TS);
-          for(int k = 0; !blocked && k < layers_size; k++) {
+          for(int k = 0; !blocked_x && k < layers_size; k++) {
             int tile = layers[k][row][col] - 1;
-            //printf("t%d ",tile);
-            blocked |= dict_get(&blocking_tiles, tile) != NULL;
+            blocked_x |= dict_get(&blocking_tiles, tile) != NULL;
           }
-          //printf("%d%d r%d c%d b%d\n",i,j,row,col,blocked);
         }
       }
-      if(!blocked) {
-        px = nx;
-        py = ny;
+      bool blocked_y = false;
+      for(int i = 0, x = px + collision_x; !blocked_y && i < 2; i++, x += collision_w) {
+        for(int j = 0, y = ny + collision_y; !blocked_y && j < 2; j++, y += collision_h) {
+          blocked_y |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+          int col = (int)(x / TS);
+          int row = (int)((y - HUD_H) / TS);
+          for(int k = 0; !blocked_y && k < layers_size; k++) {
+            int tile = layers[k][row][col] - 1;
+            blocked_y |= dict_get(&blocking_tiles, tile) != NULL;
+          }
+        }
       }
+      if(!blocked_x) px = nx;
+      if(!blocked_y) py = ny;
     }
 
     // gfx

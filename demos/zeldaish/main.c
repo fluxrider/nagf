@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include <time.h>
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 #include <math.h>
@@ -19,12 +18,6 @@
 #include "data-util.h"
 
 // NOTES: cane / elf / key / chest / bottle / fountain / fire / staff / wizard / spell / dragon / heart
-
-uint64_t currentTimeMillis() {
-  struct timespec tp;
-  if(clock_gettime(CLOCK_MONOTONIC, &tp) == -1) { perror("read"); exit(1); }
-  return tp.tv_sec * 1000 + tp.tv_nsec / 1000000;
-}
 
 struct tile_animation {
   int size;
@@ -46,6 +39,8 @@ void main(int argc, char * argv[]) {
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
 
   // parse map created with Tiled (https://www.mapeditor.org/)
+  const int TS = 16;
+  const int HUD_H = 3 * TS;
   double px = 0;
   double py = 0;
   struct dict animated_tiles;
@@ -56,10 +51,10 @@ void main(int argc, char * argv[]) {
   int tilewidth;
   int tileheight;
   int tileset_columns;
-  const int layers_capacity = 2;
-  const int map_col = 16;
-  const int map_row = 11;
-  int layers[layers_capacity][map_row][map_col];
+  const int LAYERS_CAPACITY = 2;
+  const int MAP_COL = 16;
+  const int MAP_ROW = 11;
+  int layers[LAYERS_CAPACITY][MAP_ROW][MAP_COL];
   int layers_size = 0;
   xmlDoc * map = xmlParseFile("fountain.tmx"); if(!map) { printf("xmlParseFile(fountain.tmx) failed.\n"); exit(EXIT_FAILURE); }
   xmlNode * mcur = xmlDocGetRootElement(map); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
@@ -135,7 +130,7 @@ void main(int argc, char * argv[]) {
       xmlNode * node = mcur->xmlChildrenNode;
       while(node != NULL) {
         if(xmlStrcmp(node->name, "data") == 0) {
-          if(layers_size == layers_capacity) { printf("layers array full\n"); exit(EXIT_FAILURE); }
+          if(layers_size == LAYERS_CAPACITY) { printf("layers array full\n"); exit(EXIT_FAILURE); }
           int index = layers_size++;
           xmlChar * data = xmlNodeListGetString(map, node->xmlChildrenNode, 1);
           char * p = data;
@@ -151,8 +146,8 @@ void main(int argc, char * argv[]) {
               int tile = strtol(p, &end, 10);
               // if the number is valid, store it
               if(end != p) {
-                if(row >= map_row) { printf("too many row in map data\n"); exit(EXIT_FAILURE); }
-                if(col >= map_col) { printf("too many col in map data\n"); exit(EXIT_FAILURE); }
+                if(row >= MAP_ROW) { printf("too many row in map data\n"); exit(EXIT_FAILURE); }
+                if(col >= MAP_COL) { printf("too many col in map data\n"); exit(EXIT_FAILURE); }
                 layers[index][row][col++] = tile;
                 p = end;
               }
@@ -209,6 +204,10 @@ void main(int argc, char * argv[]) {
   uint64_t walking_t0;
   uint64_t tick = 0;
   const int walking_period = 300;
+  int collision_x = 1;
+  int collision_y = 14;
+  int collision_w = 12;
+  int collision_h = 8;
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
@@ -219,8 +218,6 @@ void main(int argc, char * argv[]) {
     if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W)) axis.ly = fmax(-1, axis.ly - 1);
     if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D)) axis.lx = fmin(1, axis.lx + 1);
     if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A)) axis.lx = fmax(-1, axis.lx - 1);
-    px += delta_time * step_per_seconds * axis.lx;
-    py += delta_time * step_per_seconds * axis.ly;
     if(axis.lx != 0 || axis.ly != 0) {
       // up/down
       if(fabs(axis.ly) > fabs(axis.lx)) {
@@ -239,31 +236,53 @@ void main(int argc, char * argv[]) {
       facing_frame = 0;
       walking_t0 = tick;
     }
+    // collision
+    {
+      // tentative new position
+      double nx = px + delta_time * step_per_seconds * axis.lx;
+      double ny = py + delta_time * step_per_seconds * axis.ly;
+      // simply test the corners, and assume speed is low so I don't need collision response
+      bool blocked = false;
+      for(int i = 0, x = nx + collision_x; !blocked && i < 2; i++, x += collision_w) {
+        for(int j = 0, y = ny + collision_y; !blocked && j < 2; j++, y += collision_h) {
+          blocked |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+          int col = (int)(x / TS);
+          int row = (int)((y - HUD_H) / TS);
+          for(int k = 0; !blocked && k < layers_size; k++) {
+            int tile = layers[k][row][col];
+            blocked |= dict_get(&blocking_tiles, tile) != NULL;
+          }
+        }
+      }
+      if(!blocked) {
+        px = nx;
+        py = ny;
+      }
+    }
 
     // gfx
     if(!loading) {
       // draw tilemap
       for(int i = 0; i < layers_size; i++) {
-        for(int row = 0; row < map_row; row++) {
-          for(int col = 0; col < map_col; col++) {
+        for(int row = 0; row < MAP_ROW; row++) {
+          for(int col = 0; col < MAP_COL; col++) {
             int tile = layers[i][row][col];
             if(tile != 0) {
               tile = tile - 1;
               // handle animated tiles
               struct tile_animation * anim = dict_get(&animated_tiles, tile);
               if(anim) {
-                // TODO tick based, not time based
-                uint64_t t = currentTimeMillis() % anim->total_duration;
+                uint64_t t = tick % anim->total_duration;
                 for(int i = 0; i < anim->size; i++) {
                   if(t < anim->durations[i]) { tile = anim->ids[i]; break; }
                   t-= anim->durations[i];
                 }
               }
               int x = tilewidth * col;
-              int y = tileheight * (row + 3); // +3 for the hud
+              int y = tileheight * row + HUD_H;
               int tx = tilewidth * (tile % tileset_columns);
               int ty = tileheight * (tile / tileset_columns);
-              dprintf(gfx, "draw %s %d %d 16 16 %d %d\n", tileset_image, tx, ty, x, y);
+              dprintf(gfx, "draw %s %d %d %d %d %d %d\n", tileset_image, tx, ty, TS, TS, x, y);
             }
           }
         }

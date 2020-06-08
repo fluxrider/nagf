@@ -249,9 +249,11 @@ void main(int argc, char * argv[]) {
           int col = (int)(x / TS);
           int row = (int)((y - HUD_H) / TS);
           for(int k = 0; !blocked && k < layers_size; k++) {
-            int tile = layers[k][row][col];
+            int tile = layers[k][row][col] - 1;
+            //printf("t%d ",tile);
             blocked |= dict_get(&blocking_tiles, tile) != NULL;
           }
+          //printf("%d%d r%d c%d b%d\n",i,j,row,col,blocked);
         }
       }
       if(!blocked) {

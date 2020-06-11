@@ -93,28 +93,6 @@ const char * srr_shm_post(void * opaque, int * line) {
   return NULL;
 }
 
-// TODO can't relicense this file if it has GPL code!!
-#define MY_COPY_OF_NSEC_PER_SEC 1000000000LL
-void my_copy_of_set_normalized_timespec_from_linux_source(struct timespec *ts, time_t sec, int64_t nsec)
-{
-	while (nsec >= MY_COPY_OF_NSEC_PER_SEC) {
-		/*
-		 * The following asm() prevents the compiler from
-		 * optimising this loop into a modulo operation. See
-		 * also __iter_div_u64_rem() in include/linux/time.h
-		 */
-		asm("" : "+rm"(nsec));
-		nsec -= MY_COPY_OF_NSEC_PER_SEC;
-		++sec;
-	}
-	while (nsec < 0) {
-		asm("" : "+rm"(nsec));
-		nsec += MY_COPY_OF_NSEC_PER_SEC;
-		--sec;
-	}
-	ts->tv_sec = sec;
-	ts->tv_nsec = nsec;
-}
 const char * srr_shm_wait(void * opaque, double s, int * line) {
   struct opaque_data * data = opaque;
   if(s == 0) {
@@ -122,7 +100,9 @@ const char * srr_shm_wait(void * opaque, double s, int * line) {
   } else {
     struct timespec timeout;
     if(clock_gettime(CLOCK_REALTIME, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
-    my_copy_of_set_normalized_timespec_from_linux_source(&timeout, timeout.tv_sec + (time_t)s, timeout.tv_nsec + (s - (time_t)s) * 1000000000LL);
+    timeout.tv_sec += (time_t)s;
+    timeout.tv_nsec += (s - (time_t)s) * 1000000000LL);
+    while(timeout.tv_nsec >= 1000000000LL) { timeout.tv_nsec -= 1000000000LL; timeout.tv_sec++; }
     if(sem_timedwait(data->notify_me, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
   }
   return NULL;

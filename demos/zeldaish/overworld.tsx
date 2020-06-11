@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <tileset version="1.2" tiledversion="1.3.3" name="overworld" tilewidth="16" tileheight="16" tilecount="1440" columns="40">
  <image source="overworld.CC0.ArMM1998.png" width="640" height="576"/>
+ <tile id="6" type="block"/>
+ <tile id="7" type="block"/>
+ <tile id="8" type="block"/>
+ <tile id="9" type="block"/>
+ <tile id="10" type="block"/>
+ <tile id="32" type="block"/>
+ <tile id="33" type="block"/>
  <tile id="40">
   <animation>
    <frame tileid="40" duration="200"/>
@@ -13,9 +20,42 @@
    <frame tileid="83" duration="200"/>
   </animation>
  </tile>
+ <tile id="46" type="block"/>
+ <tile id="47" type="block"/>
+ <tile id="48" type="block"/>
+ <tile id="49" type="block"/>
+ <tile id="50" type="block"/>
+ <tile id="73" type="block"/>
+ <tile id="74" type="block"/>
+ <tile id="86" type="block"/>
+ <tile id="87" type="block"/>
+ <tile id="88" type="block"/>
+ <tile id="89" type="block"/>
+ <tile id="90" type="block"/>
+ <tile id="114" type="block"/>
+ <tile id="126" type="block"/>
+ <tile id="127" type="block"/>
+ <tile id="128" type="block"/>
+ <tile id="129" type="block"/>
+ <tile id="130" type="block"/>
+ <tile id="151" type="block"/>
+ <tile id="152" type="block"/>
+ <tile id="166" type="block"/>
+ <tile id="167" type="block"/>
+ <tile id="168" type="warp"/>
+ <tile id="169" type="block"/>
+ <tile id="170" type="block"/>
+ <tile id="191" type="block"/>
+ <tile id="192" type="block"/>
  <tile id="207" type="block"/>
  <tile id="208" type="block"/>
  <tile id="209" type="block"/>
+ <tile id="213" type="block"/>
+ <tile id="214" type="block"/>
+ <tile id="253" type="block"/>
+ <tile id="254" type="block"/>
+ <tile id="293" type="block"/>
+ <tile id="294" type="block"/>
  <tile id="365" probability="0.2"/>
  <tile id="367" probability="0.2"/>
  <tile id="368" probability="0.2"/>
@@ -80,14 +120,29 @@
  <tile id="603" type="block"/>
  <tile id="640" type="block"/>
  <tile id="641" type="block"/>
+ <tile id="642" type="block"/>
+ <tile id="643" type="block"/>
+ <tile id="644" type="block"/>
+ <tile id="645" type="block"/>
+ <tile id="646" type="block"/>
+ <tile id="647" type="block"/>
  <tile id="680" type="block"/>
  <tile id="682" type="block"/>
  <tile id="683" type="block"/>
  <tile id="684" type="block"/>
+ <tile id="685" type="block"/>
+ <tile id="686" type="block"/>
+ <tile id="687" type="block"/>
  <tile id="720" type="block"/>
  <tile id="722" type="block"/>
  <tile id="723" type="block"/>
  <tile id="724" type="block"/>
+ <tile id="725" type="block"/>
+ <tile id="726" type="block"/>
+ <tile id="727" type="block"/>
  <tile id="760" type="block"/>
  <tile id="761" type="block"/>
+ <tile id="763" type="block"/>
+ <tile id="764" type="block"/>
+ <tile id="765" type="block"/>
 </tileset>

@@ -1,4 +1,4 @@
-// Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
+// Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later.
 // javac -classpath .. gfx-swing.java
 // mkfifo gfx.fifo && LD_LIBRARY_PATH=libsrr java -cp .:servers -Djava.library.path=$(pwd)/libsrr gfx_swing && rm gfx.fifo
 

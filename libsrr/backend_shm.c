@@ -1,4 +1,5 @@
-// Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
+// Copyright 2020 David Lareau. This source code form is subject to the terms of the Mozilla Public License 2.0.
+
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -92,7 +93,7 @@ const char * srr_shm_post(void * opaque, int * line) {
   return NULL;
 }
 
-
+// TODO can't relicense this file if it has GPL code!!
 #define MY_COPY_OF_NSEC_PER_SEC 1000000000LL
 void my_copy_of_set_normalized_timespec_from_linux_source(struct timespec *ts, time_t sec, int64_t nsec)
 {

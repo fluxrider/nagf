@@ -1,4 +1,4 @@
-// Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later, no warranty.
+// Copyright 2020 David Lareau. This program is free software under the terms of the Zero Clause BSD.
 // gcc -o zeldaish main.c ../../utils/*.c -L../../libsrr -I../../libsrr -I../../utils -lsrr $(pkg-config --libs --cflags libxml-2.0) -lm
 // LD_LIBRARY_PATH=../../libsrr ./zeldaish
 #include <stdlib.h>

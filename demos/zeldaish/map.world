@@ -1,0 +1,36 @@
+{
+  "maps": [
+    {
+      "fileName": "fountain.tmx",
+      "x": 256,
+      "y": 176
+    },
+    {
+      "fileName": "dragon.tmx",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "fileName": "fire.tmx",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "fileName": "elf.tmx",
+      "x": 0,
+      "y": 176
+    },
+    {
+      "fileName": "wizard.tmx",
+      "x": 512,
+      "y": 0
+    },
+    {
+      "fileName": "forest.tmx",
+      "x": 512,
+      "y": 176
+    }
+  ],
+  "type": "world"
+}
+

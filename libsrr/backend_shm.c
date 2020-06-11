@@ -101,7 +101,7 @@ const char * srr_shm_wait(void * opaque, double s, int * line) {
     struct timespec timeout;
     if(clock_gettime(CLOCK_REALTIME, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
     timeout.tv_sec += (time_t)s;
-    timeout.tv_nsec += (s - (time_t)s) * 1000000000LL);
+    timeout.tv_nsec += (s - (time_t)s) * 1000000000LL;
     while(timeout.tv_nsec >= 1000000000LL) { timeout.tv_nsec -= 1000000000LL; timeout.tv_sec++; }
     if(sem_timedwait(data->notify_me, &timeout) == -1) { *line = __LINE__; return strerror(errno); }
   }

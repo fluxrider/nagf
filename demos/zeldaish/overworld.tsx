@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.2" tiledversion="1.3.3" name="overworld" tilewidth="16" tileheight="16" tilecount="1440" columns="40">
+<tileset version="1.2" tiledversion="1.3.5" name="overworld" tilewidth="16" tileheight="16" tilecount="1440" columns="40">
  <image source="overworld.CC0.ArMM1998.png" width="640" height="576"/>
  <tile id="6" type="block"/>
  <tile id="7" type="block"/>
@@ -104,20 +104,32 @@
    <frame tileid="430" duration="140"/>
   </animation>
  </tile>
+ <tile id="455" type="block"/>
+ <tile id="456" type="block"/>
+ <tile id="457" type="block"/>
  <tile id="462" type="block"/>
  <tile id="463" type="block"/>
  <tile id="464" type="block"/>
+ <tile id="495" type="block"/>
+ <tile id="497" type="block"/>
  <tile id="521" type="block"/>
  <tile id="522" type="block"/>
  <tile id="523" type="block"/>
+ <tile id="535" type="block"/>
+ <tile id="536" type="block"/>
+ <tile id="537" type="block"/>
  <tile id="560" type="block"/>
  <tile id="561" type="block"/>
  <tile id="562" type="block"/>
  <tile id="563" type="block"/>
+ <tile id="575" type="block"/>
+ <tile id="576" type="block"/>
  <tile id="600" type="block"/>
  <tile id="601" type="block"/>
  <tile id="602" type="block"/>
  <tile id="603" type="block"/>
+ <tile id="615" type="block"/>
+ <tile id="616" type="block"/>
  <tile id="640" type="block"/>
  <tile id="641" type="block"/>
  <tile id="642" type="block"/>

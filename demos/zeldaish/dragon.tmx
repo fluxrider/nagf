@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.2" tiledversion="1.3.3" orientation="orthogonal" renderorder="right-down" width="16" height="11" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="4">
+<map version="1.2" tiledversion="1.3.5" orientation="orthogonal" renderorder="right-down" width="16" height="11" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="4">
  <tileset firstgid="1" source="overworld.tsx"/>
  <layer id="1" name="floor" width="16" height="11">
   <data encoding="csv">
@@ -18,9 +18,9 @@
  </layer>
  <layer id="2" name="props" width="16" height="11">
   <data encoding="csv">
-0,0,214,215,0,0,456,457,458,0,0,0,23,24,25,725,
-292,293,254,255,0,0,496,497,498,0,0,0,63,64,65,725,
-332,333,294,295,0,0,536,537,538,0,108,68,103,104,105,725,
+0,0,214,215,0,0,499,500,501,0,0,0,23,24,25,725,
+292,293,254,255,0,0,539,540,541,0,0,0,63,64,65,725,
+332,333,294,295,0,0,579,580,581,0,108,68,103,104,105,725,
 0,238,237,110,0,0,0,0,0,109,236,237,143,144,145,725,
 320,158,277,0,148,0,0,0,0,0,276,277,183,184,185,723,
 280,277,0,0,0,0,0,0,0,0,149,482,182,222,262,0,

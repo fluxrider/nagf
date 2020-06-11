@@ -26,6 +26,11 @@
       "y": 0
     },
     {
+      "fileName": "cave.tmx",
+      "x": 800,
+      "y": 0
+    },
+    {
       "fileName": "forest.tmx",
       "x": 512,
       "y": 176

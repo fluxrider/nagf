@@ -39,8 +39,5 @@
   <object id="4" name="warp" type="spawn" x="135.818" y="152.909">
    <point/>
   </object>
-  <object id="5" name="warp" type="spawn" x="-136.25" y="105.25">
-   <point/>
-  </object>
  </objectgroup>
 </map>

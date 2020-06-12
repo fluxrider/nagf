@@ -34,6 +34,13 @@ struct map_node {
   struct map_node * west;
 };
 
+struct rect {
+  double x;
+  double y;
+  double w;
+  double h;
+};
+
 void main(int argc, char * argv[]) {
   // connect
   const char * error;
@@ -59,10 +66,10 @@ void main(int argc, char * argv[]) {
   dragon.west = &fire; fire.east = &dragon;
   dragon.east = &wizard; wizard.west = &dragon;
   wizard.south = &forest; forest.north = &wizard;
-  struct dict maps;
-  dict_init(&maps, 0, true, false);
-  dict_set(&maps, "cave", &cave);
-  dict_set(&maps, "wizard", &wizard);
+  struct dict warps;
+  dict_init(&warps, 0, true, false);
+  dict_set(&warps, "cave", &cave);
+  dict_set(&warps, "wizard", &wizard);
   struct map_node * map = NULL;
   struct map_node * next_map = &fountain;
 
@@ -82,6 +89,8 @@ void main(int argc, char * argv[]) {
   const int LAYERS_CAPACITY = 2;
   int layers[LAYERS_CAPACITY][MAP_ROW][MAP_COL];
   int layers_size;
+  bool warping = false;
+  struct rect warp;
 
   // states
   double px = 0;
@@ -106,14 +115,12 @@ void main(int argc, char * argv[]) {
   uint64_t walking_t0;
   uint64_t tick = 0;
   const int walking_period = 300;
-  int collision_x = 1;
-  int collision_y = 14;
-  int collision_w = 12;
-  int collision_h = 8;
+  struct rect collision = {1, 14, 12, 8}; // hard-coded princess collision box
   while(running) {
-    // parse map created with Tiled (https://www.mapeditor.org/) [with some assumings on tile size, and single tileset across all maps)
+    // parse map created with Tiled (https://www.mapeditor.org/) [with assumptions on tile size, single tileset across all maps, single warp rect)
     if(next_map) {
       layers_size = 0;
+      warp.w = 0;
       xmlDoc * doc = xmlParseFile(next_map->filename); if(!doc) { printf("xmlParseFile(%s) failed.\n", next_map->filename); exit(EXIT_FAILURE); }
       xmlNode * mcur = xmlDocGetRootElement(doc); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
       mcur = mcur->xmlChildrenNode;
@@ -219,17 +226,31 @@ void main(int argc, char * argv[]) {
           while(node != NULL) {
             if(xmlStrcmp(node->name, "object") == 0) {
               xmlChar * type = xmlGetProp(node, "type");
-              if(type && xmlStrcmp(type, "spawn") == 0) {
-                xmlChar * name = xmlGetProp(node, "name");
-                xmlChar * x = xmlGetProp(node, "x");
-                xmlChar * y = xmlGetProp(node, "y");
-                if(xmlStrcmp(name, "start") == 0 && !map) {
-                  px = strtol(x, NULL, 10) - collision_w/2 - collision_x;
-                  py = strtol(y, NULL, 10) + HUD_H - collision_h/2 - collision_y;
+              if(type) {
+                if(xmlStrcmp(type, "spawn") == 0) {
+                  xmlChar * x = xmlGetProp(node, "x");
+                  xmlChar * y = xmlGetProp(node, "y");
+                  if(warping || !map) {
+                    px = strtod(x, NULL) - collision.w/2 - collision.x;
+                    py = strtod(y, NULL) + HUD_H - collision.h/2 - collision.y;
+                  }
+                  xmlFree(y);
+                  xmlFree(x);
                 }
-                xmlFree(y);
-                xmlFree(x);
-                xmlFree(name);
+                else if(xmlStrcmp(type, "warp") == 0) {
+                  xmlChar * x = xmlGetProp(node, "x");
+                  xmlChar * y = xmlGetProp(node, "y");
+                  xmlChar * w = xmlGetProp(node, "width");
+                  xmlChar * h = xmlGetProp(node, "height");
+                  warp.x = strtod(x, NULL);
+                  warp.w = strtod(w, NULL);
+                  warp.y = strtod(y, NULL) + HUD_H;
+                  warp.h = strtod(h, NULL);
+                  xmlFree(h);
+                  xmlFree(w);
+                  xmlFree(y);
+                  xmlFree(x);
+                }
               }
               xmlFree(type);
             }
@@ -242,6 +263,7 @@ void main(int argc, char * argv[]) {
       if(!tileset_image) { printf("did not find anything tileset image while parsing map\n"); exit(EXIT_FAILURE); }
       map = next_map;
       next_map = NULL;
+      warping = false;
     }
 
     // input
@@ -281,10 +303,10 @@ void main(int argc, char * argv[]) {
         // simply test the corners, and assume speed is low so I don't need collision response
         bool blocked_x = false;
         bool break_x = false;
-        for(int i = 0, x = nx + collision_x; !break_x && !blocked_x && i < 2; i++, x += collision_w) {
-          for(int j = 0, y = py + collision_y; !break_x && !blocked_x && j < 2; j++, y += collision_h) {
-            if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision_w; }
-            else if(x >= MAP_COL * TS && map->east) { break_x = true; next_map = map->east; nx -= MAP_COL * TS - collision_w; }
+        for(int i = 0, x = nx + collision.x; !break_x && !blocked_x && i < 2; i++, x += collision.w) {
+          for(int j = 0, y = py + collision.y; !break_x && !blocked_x && j < 2; j++, y += collision.h) {
+            if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
+            else if(x >= MAP_COL * TS && map->east) { break_x = true; next_map = map->east; nx -= MAP_COL * TS - collision.w; }
             else {
               blocked_x |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
               int col = (int)(x / TS);
@@ -298,10 +320,10 @@ void main(int argc, char * argv[]) {
         }
         bool blocked_y = false;
         bool break_y = false;
-        for(int i = 0, x = px + collision_x; !break_y && !blocked_y && i < 2; i++, x += collision_w) {
-          for(int j = 0, y = ny + collision_y; !break_y && !blocked_y && j < 2; j++, y += collision_h) {
-            if(y - HUD_H < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision_h; }
-            else if(y - HUD_H >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision_h; }
+        for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
+          for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
+            if(y - HUD_H < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
+            else if(y - HUD_H >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision.h; }
             else {
               blocked_y |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
               int col = (int)(x / TS);

@@ -35,6 +35,6 @@
   <object id="2" name="bottle" type="chest" x="135.667" y="71.6667">
    <point/>
   </object>
-  <object id="3" name="cave_exit" type="warp" x="136" y="167.333"/>
+  <object id="3" name="wizard" type="warp" x="136" y="167.333"/>
  </objectgroup>
 </map>

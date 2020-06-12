@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#pragma GCC diagnostic ignored "-Wint-conversion"
 
 // dictionnary data structure
 // - key must be comparable with < > == or with strcmp and fit in a intptr_t

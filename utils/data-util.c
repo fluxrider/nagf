@@ -4,8 +4,6 @@
 #include <string.h>
 #include "data-util.h"
 
-#pragma GCC diagnostic ignored "-Wint-conversion"
-
 static size_t _find(struct dict * self, intptr_t key) {
   // TODO binary search on large array, even smaller threshold if strcmp
   size_t i = self->size;

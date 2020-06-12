@@ -26,6 +26,14 @@ struct tile_animation {
   uint64_t total_duration;
 };
 
+struct map_node {
+  const char * filename;
+  struct map_node * north;
+  struct map_node * south;
+  struct map_node * east;
+  struct map_node * west;
+};
+
 void main(int argc, char * argv[]) {
   // connect
   const char * error;
@@ -37,6 +45,25 @@ void main(int argc, char * argv[]) {
   struct srr_direct * gmm = srr_direct(&gfs);
   int gfx = open("gfx.fifo", O_WRONLY); if(gfx == -1) { perror("open(gfx.fifo)"); exit(EXIT_FAILURE); }
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
+  
+  // map
+  struct map_node fountain = {"fountain.tmx"};
+  struct map_node forest = {"forest.tmx"};
+  struct map_node elf = {"elf.tmx"};
+  struct map_node fire = {"fire.tmx"};
+  struct map_node dragon = {"dragon.tmx"};
+  struct map_node wizard = {"wizard.tmx"};
+  struct map_node cave = {"cave.tmx"};
+  fountain.west = &elf; elf.east = &fountain;
+  fountain.north = &dragon; dragon.south = &fountain;
+  dragon.west = &fire; fire.east = &dragon;
+  dragon.east = &wizard; wizard.west = &dragon;
+  wizard.south = &forest; forest.north = &wizard;
+  struct dict maps;
+  dict_init(&maps, 0, true, false);
+  dict_set(&maps, "cave", &cave);
+  dict_set(&maps, "wizard", &wizard);
+  struct map_node * map = &fountain;
 
   // parse map created with Tiled (https://www.mapeditor.org/)
   const int TS = 16;
@@ -56,8 +83,8 @@ void main(int argc, char * argv[]) {
   const int MAP_ROW = 11;
   int layers[LAYERS_CAPACITY][MAP_ROW][MAP_COL];
   int layers_size = 0;
-  xmlDoc * map = xmlParseFile("fountain.tmx"); if(!map) { printf("xmlParseFile(fountain.tmx) failed.\n"); exit(EXIT_FAILURE); }
-  xmlNode * mcur = xmlDocGetRootElement(map); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
+  xmlDoc * doc = xmlParseFile(map->filename); if(!doc) { printf("xmlParseFile(%s) failed.\n", map->filename); exit(EXIT_FAILURE); }
+  xmlNode * mcur = xmlDocGetRootElement(doc); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
   mcur = mcur->xmlChildrenNode;
   while(mcur != NULL) {
     // load tileset
@@ -132,7 +159,7 @@ void main(int argc, char * argv[]) {
         if(xmlStrcmp(node->name, "data") == 0) {
           if(layers_size == LAYERS_CAPACITY) { printf("layers array full\n"); exit(EXIT_FAILURE); }
           int index = layers_size++;
-          xmlChar * data = xmlNodeListGetString(map, node->xmlChildrenNode, 1);
+          xmlChar * data = xmlNodeListGetString(doc, node->xmlChildrenNode, 1);
           char * p = data;
           int row = 0, col = 0;
           while(*p) {
@@ -181,7 +208,7 @@ void main(int argc, char * argv[]) {
     }
     mcur = mcur->next;
   }
-  xmlFreeDoc(map);
+  xmlFreeDoc(doc);
   if(!tileset_image) { printf("did not find anything tileset image while parsing map\n"); exit(EXIT_FAILURE); }
 
   // game setup

@@ -41,6 +41,19 @@ struct rect {
   double h;
 };
 
+bool collides_1D(double p, double pl, double q, double ql) {
+  return p + pl >= q && p <= q + ql;
+}
+
+bool collides_2D(struct rect * p, struct rect * q) {
+  return collides_1D(p->x, p->w, q->x, q->w) && collides_1D(p->y, p->h, q->y, q->h);
+}
+
+bool collides_2D_dx(double px, double py, double pw, double ph, struct rect * q) {
+  struct rect p = {px, py, pw, ph};
+  return collides_2D(&p, q);
+}
+
 void main(int argc, char * argv[]) {
   // connect
   const char * error;
@@ -91,6 +104,7 @@ void main(int argc, char * argv[]) {
   int layers_size;
   bool warping = false;
   struct rect warp;
+  struct map_node * warp_map;
 
   // states
   double px = 0;
@@ -120,7 +134,7 @@ void main(int argc, char * argv[]) {
     // parse map created with Tiled (https://www.mapeditor.org/) [with assumptions on tile size, single tileset across all maps, single warp rect)
     if(next_map) {
       layers_size = 0;
-      warp.w = 0;
+      warp_map = NULL;
       xmlDoc * doc = xmlParseFile(next_map->filename); if(!doc) { printf("xmlParseFile(%s) failed.\n", next_map->filename); exit(EXIT_FAILURE); }
       xmlNode * mcur = xmlDocGetRootElement(doc); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
       mcur = mcur->xmlChildrenNode;
@@ -242,10 +256,14 @@ void main(int argc, char * argv[]) {
                   xmlChar * y = xmlGetProp(node, "y");
                   xmlChar * w = xmlGetProp(node, "width");
                   xmlChar * h = xmlGetProp(node, "height");
+                  xmlChar * name = xmlGetProp(node, "name");
                   warp.x = strtod(x, NULL);
                   warp.w = strtod(w, NULL);
                   warp.y = strtod(y, NULL);
                   warp.h = strtod(h, NULL);
+                  struct map_node ** m = dict_get(&warps, name);
+                  if(m) warp_map = *m; else { printf("invalid warp name %s\n", name); exit(EXIT_FAILURE); }
+                  xmlFree(name);
                   xmlFree(h);
                   xmlFree(w);
                   xmlFree(y);
@@ -303,6 +321,7 @@ void main(int argc, char * argv[]) {
         // simply test the corners, and assume speed is low so I don't need collision response
         bool blocked_x = false;
         bool break_x = false;
+        if(warp_map && collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &warp)) { break_x = true; next_map = warp_map; warping = true; }
         for(int i = 0, x = nx + collision.x; !break_x && !blocked_x && i < 2; i++, x += collision.w) {
           for(int j = 0, y = py + collision.y; !break_x && !blocked_x && j < 2; j++, y += collision.h) {
             if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
@@ -320,6 +339,7 @@ void main(int argc, char * argv[]) {
         }
         bool blocked_y = false;
         bool break_y = false;
+        if(warp_map && collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &warp)) { break_y = true; next_map = warp_map; warping = true; }
         for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
           for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
             if(y < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }

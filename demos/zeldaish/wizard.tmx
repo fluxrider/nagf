@@ -35,6 +35,6 @@
   <object id="2" name="wizard" type="npc" x="86" y="86.6667">
    <point/>
   </object>
-  <object id="4" name="cave" type="warp" x="151.697" y="82"/>
+  <object id="4" name="cave" type="warp" x="142.606" y="70" width="18.7717" height="22.5253"/>
  </objectgroup>
 </map>

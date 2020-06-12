@@ -219,13 +219,17 @@ void main(int argc, char * argv[]) {
           while(node != NULL) {
             if(xmlStrcmp(node->name, "object") == 0) {
               xmlChar * type = xmlGetProp(node, "type");
-              if(type && !map && xmlStrcmp(type, "spawn") == 0) {
+              if(type && xmlStrcmp(type, "spawn") == 0) {
+                xmlChar * name = xmlGetProp(node, "name");
                 xmlChar * x = xmlGetProp(node, "x");
                 xmlChar * y = xmlGetProp(node, "y");
-                px = strtol(x, NULL, 10);
-                py = strtol(y, NULL, 10);
+                if(xmlStrcmp(name, "start") == 0 && !map) {
+                  px = strtol(x, NULL, 10) - collision_w/2 - collision_x;
+                  py = strtol(y, NULL, 10) + HUD_H - collision_h/2 - collision_y;
+                }
                 xmlFree(y);
                 xmlFree(x);
+                xmlFree(name);
               }
               xmlFree(type);
             }

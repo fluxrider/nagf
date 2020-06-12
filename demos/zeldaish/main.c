@@ -232,7 +232,7 @@ void main(int argc, char * argv[]) {
                   xmlChar * y = xmlGetProp(node, "y");
                   if(warping || !map) {
                     px = strtod(x, NULL) - collision.w/2 - collision.x;
-                    py = strtod(y, NULL) + HUD_H - collision.h/2 - collision.y;
+                    py = strtod(y, NULL) - collision.h/2 - collision.y;
                   }
                   xmlFree(y);
                   xmlFree(x);
@@ -244,7 +244,7 @@ void main(int argc, char * argv[]) {
                   xmlChar * h = xmlGetProp(node, "height");
                   warp.x = strtod(x, NULL);
                   warp.w = strtod(w, NULL);
-                  warp.y = strtod(y, NULL) + HUD_H;
+                  warp.y = strtod(y, NULL);
                   warp.h = strtod(h, NULL);
                   xmlFree(h);
                   xmlFree(w);
@@ -308,9 +308,9 @@ void main(int argc, char * argv[]) {
             if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
             else if(x >= MAP_COL * TS && map->east) { break_x = true; next_map = map->east; nx -= MAP_COL * TS - collision.w; }
             else {
-              blocked_x |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+              blocked_x |= y < 0 || y >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
               int col = (int)(x / TS);
-              int row = (int)((y - HUD_H) / TS);
+              int row = (int)(y / TS);
               for(int k = 0; !blocked_x && k < layers_size; k++) {
                 int tile = layers[k][row][col] - 1;
                 blocked_x |= dict_get(&blocking_tiles, tile) != NULL;
@@ -322,12 +322,12 @@ void main(int argc, char * argv[]) {
         bool break_y = false;
         for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
           for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
-            if(y - HUD_H < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
-            else if(y - HUD_H >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision.h; }
+            if(y < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
+            else if(y >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision.h; }
             else {
-              blocked_y |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+              blocked_y |= y < 0 || y >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
               int col = (int)(x / TS);
-              int row = (int)((y - HUD_H) / TS);
+              int row = (int)(y / TS);
               for(int k = 0; !blocked_y && k < layers_size; k++) {
                 int tile = layers[k][row][col] - 1;
                 blocked_y |= dict_get(&blocking_tiles, tile) != NULL;
@@ -365,7 +365,7 @@ void main(int argc, char * argv[]) {
         }
       }
       // draw player
-      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py, facing_mirror? "mx" : "");
+      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
     }
     // flush
     dprintf(gfx, "flush\n");

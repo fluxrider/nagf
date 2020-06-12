@@ -6,9 +6,12 @@
  <tile id="8" type="block"/>
  <tile id="9" type="block"/>
  <tile id="10" type="block"/>
+ <tile id="22" type="block"/>
+ <tile id="23" type="block"/>
+ <tile id="24" type="block"/>
  <tile id="32" type="block"/>
  <tile id="33" type="block"/>
- <tile id="40">
+ <tile id="40" type="block">
   <animation>
    <frame tileid="40" duration="200"/>
    <frame tileid="41" duration="200"/>
@@ -25,6 +28,9 @@
  <tile id="48" type="block"/>
  <tile id="49" type="block"/>
  <tile id="50" type="block"/>
+ <tile id="62" type="block"/>
+ <tile id="63" type="block"/>
+ <tile id="64" type="block"/>
  <tile id="73" type="block"/>
  <tile id="74" type="block"/>
  <tile id="86" type="block"/>
@@ -32,30 +38,65 @@
  <tile id="88" type="block"/>
  <tile id="89" type="block"/>
  <tile id="90" type="block"/>
+ <tile id="102" type="block"/>
+ <tile id="103" type="block"/>
+ <tile id="104" type="block"/>
  <tile id="114" type="block"/>
  <tile id="126" type="block"/>
  <tile id="127" type="block"/>
  <tile id="128" type="block"/>
  <tile id="129" type="block"/>
  <tile id="130" type="block"/>
+ <tile id="142" type="block"/>
+ <tile id="143" type="block"/>
+ <tile id="144" type="block"/>
  <tile id="151" type="block"/>
  <tile id="152" type="block"/>
+ <tile id="157" type="block"/>
+ <tile id="158" type="block"/>
  <tile id="166" type="block"/>
  <tile id="167" type="block"/>
  <tile id="168" type="warp"/>
  <tile id="169" type="block"/>
  <tile id="170" type="block"/>
+ <tile id="181" type="block"/>
+ <tile id="182" type="block"/>
+ <tile id="183" type="block"/>
+ <tile id="184" type="block"/>
  <tile id="191" type="block"/>
  <tile id="192" type="block"/>
+ <tile id="197" type="block"/>
+ <tile id="198" type="block"/>
  <tile id="207" type="block"/>
  <tile id="208" type="block"/>
  <tile id="209" type="block"/>
  <tile id="213" type="block"/>
  <tile id="214" type="block"/>
+ <tile id="221" type="block"/>
+ <tile id="222" type="block"/>
+ <tile id="223" type="block"/>
+ <tile id="224" type="block"/>
+ <tile id="235" type="block"/>
+ <tile id="236" type="block"/>
+ <tile id="237" type="block"/>
+ <tile id="238" type="block"/>
+ <tile id="239" type="block"/>
  <tile id="253" type="block"/>
  <tile id="254" type="block"/>
+ <tile id="261" type="block"/>
+ <tile id="275" type="block"/>
+ <tile id="276" type="block"/>
+ <tile id="277" type="block"/>
+ <tile id="278" type="block"/>
+ <tile id="279" type="block"/>
  <tile id="293" type="block"/>
  <tile id="294" type="block"/>
+ <tile id="315" type="block"/>
+ <tile id="316" type="block"/>
+ <tile id="317" type="block"/>
+ <tile id="318" type="block"/>
+ <tile id="319" type="block"/>
+ <tile id="359" type="block"/>
  <tile id="365" probability="0.2"/>
  <tile id="367" probability="0.2"/>
  <tile id="368" probability="0.2"/>

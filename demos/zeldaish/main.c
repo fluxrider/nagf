@@ -219,7 +219,7 @@ void main(int argc, char * argv[]) {
           while(node != NULL) {
             if(xmlStrcmp(node->name, "object") == 0) {
               xmlChar * type = xmlGetProp(node, "type");
-              if(type && xmlStrcmp(type, "spawn") == 0) {
+              if(type && !map && xmlStrcmp(type, "spawn") == 0) {
                 xmlChar * x = xmlGetProp(node, "x");
                 xmlChar * y = xmlGetProp(node, "y");
                 px = strtol(x, NULL, 10);
@@ -276,26 +276,36 @@ void main(int argc, char * argv[]) {
         // test dimensions separately to allow sliding
         // simply test the corners, and assume speed is low so I don't need collision response
         bool blocked_x = false;
-        for(int i = 0, x = nx + collision_x; !blocked_x && i < 2; i++, x += collision_w) {
-          for(int j = 0, y = py + collision_y; !blocked_x && j < 2; j++, y += collision_h) {
-            blocked_x |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
-            int col = (int)(x / TS);
-            int row = (int)((y - HUD_H) / TS);
-            for(int k = 0; !blocked_x && k < layers_size; k++) {
-              int tile = layers[k][row][col] - 1;
-              blocked_x |= dict_get(&blocking_tiles, tile) != NULL;
+        bool break_x = false;
+        for(int i = 0, x = nx + collision_x; !break_x && !blocked_x && i < 2; i++, x += collision_w) {
+          for(int j = 0, y = py + collision_y; !break_x && !blocked_x && j < 2; j++, y += collision_h) {
+            if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision_w; }
+            else if(x >= MAP_COL * TS && map->east) { break_x = true; next_map = map->east; nx -= MAP_COL * TS - collision_w; }
+            else {
+              blocked_x |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+              int col = (int)(x / TS);
+              int row = (int)((y - HUD_H) / TS);
+              for(int k = 0; !blocked_x && k < layers_size; k++) {
+                int tile = layers[k][row][col] - 1;
+                blocked_x |= dict_get(&blocking_tiles, tile) != NULL;
+              }
             }
           }
         }
         bool blocked_y = false;
-        for(int i = 0, x = px + collision_x; !blocked_y && i < 2; i++, x += collision_w) {
-          for(int j = 0, y = ny + collision_y; !blocked_y && j < 2; j++, y += collision_h) {
-            blocked_y |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
-            int col = (int)(x / TS);
-            int row = (int)((y - HUD_H) / TS);
-            for(int k = 0; !blocked_y && k < layers_size; k++) {
-              int tile = layers[k][row][col] - 1;
-              blocked_y |= dict_get(&blocking_tiles, tile) != NULL;
+        bool break_y = false;
+        for(int i = 0, x = px + collision_x; !break_y && !blocked_y && i < 2; i++, x += collision_w) {
+          for(int j = 0, y = ny + collision_y; !break_y && !blocked_y && j < 2; j++, y += collision_h) {
+            if(y - HUD_H < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision_h; }
+            else if(y - HUD_H >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision_h; }
+            else {
+              blocked_y |= y - HUD_H < 0 || y - HUD_H >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+              int col = (int)(x / TS);
+              int row = (int)((y - HUD_H) / TS);
+              for(int k = 0; !blocked_y && k < layers_size; k++) {
+                int tile = layers[k][row][col] - 1;
+                blocked_y |= dict_get(&blocking_tiles, tile) != NULL;
+              }
             }
           }
         }

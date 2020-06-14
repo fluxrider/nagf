@@ -294,7 +294,7 @@ void main(int argc, char * argv[]) {
                   xmlChar * y = xmlGetProp(node, "y");
                   xmlChar * name = xmlGetProp(node, "name");
                   item_id = dict_get(&items, name);
-                  if(item_id) {item_id = *(char **)item_id;
+                  if(item_id) item_id = *(char **)item_id;
                   item.x = strtod(x, NULL) - TS/2;
                   item.y = strtod(y, NULL) - TS/2;
                   item.w = TS;

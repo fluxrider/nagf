@@ -105,6 +105,12 @@ void main(int argc, char * argv[]) {
   bool warping = false;
   struct rect warp;
   struct map_node * warp_map;
+  struct rect item;
+  enum {
+    ITEM_NONE,
+    ITEM_CANE
+  };
+  int item_id = ITEM_NONE;
 
   // states
   double px = 0;
@@ -115,6 +121,8 @@ void main(int argc, char * argv[]) {
   dprintf(gfx, "title %s\n", argv[0]);
   dprintf(gfx, "window 256 224\n");
   dprintf(gfx, "cache princess.png\n");
+  const char * candy_cane = "cane.resized.CC0.7soul1.png";
+  dprintf(gfx, "cache %s\n", candy_cane);
 
   // game loop
   bool running = true;
@@ -135,6 +143,7 @@ void main(int argc, char * argv[]) {
     if(next_map) {
       layers_size = 0;
       warp_map = NULL;
+      item_id = ITEM_NONE;
       xmlDoc * doc = xmlParseFile(next_map->filename); if(!doc) { printf("xmlParseFile(%s) failed.\n", next_map->filename); exit(EXIT_FAILURE); }
       xmlNode * mcur = xmlDocGetRootElement(doc); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
       mcur = mcur->xmlChildrenNode;
@@ -269,6 +278,19 @@ void main(int argc, char * argv[]) {
                   xmlFree(y);
                   xmlFree(x);
                 }
+                else if(xmlStrcmp(type, "item") == 0) {
+                  xmlChar * x = xmlGetProp(node, "x");
+                  xmlChar * y = xmlGetProp(node, "y");
+                  xmlChar * name = xmlGetProp(node, "name");
+                  if(xmlStrcmp(name, "cane") == 0) item_id = ITEM_CANE;
+                  item.x = strtod(x, NULL) - TS/2;
+                  item.y = strtod(y, NULL) - TS/2;
+                  item.w = TS;
+                  item.h = TS;
+                  xmlFree(name);
+                  xmlFree(y);
+                  xmlFree(x);
+                }
               }
               xmlFree(type);
             }
@@ -322,6 +344,7 @@ void main(int argc, char * argv[]) {
         bool blocked_x = false;
         bool break_x = false;
         if(warp_map && collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &warp)) { break_x = true; next_map = warp_map; warping = true; }
+        if(!break_x && item_id != ITEM_NONE) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &item);
         for(int i = 0, x = nx + collision.x; !break_x && !blocked_x && i < 2; i++, x += collision.w) {
           for(int j = 0, y = py + collision.y; !break_x && !blocked_x && j < 2; j++, y += collision.h) {
             if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
@@ -340,6 +363,7 @@ void main(int argc, char * argv[]) {
         bool blocked_y = false;
         bool break_y = false;
         if(warp_map && collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &warp)) { break_y = true; next_map = warp_map; warping = true; }
+        if(!break_y && item_id != ITEM_NONE) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &item);
         for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
           for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
             if(y < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
@@ -383,6 +407,10 @@ void main(int argc, char * argv[]) {
             }
           }
         }
+      }
+      // draw item
+      if(item_id == ITEM_CANE) {
+        dprintf(gfx, "draw %s %f %f\n", candy_cane, item.x, item.y + HUD_H);
       }
       // draw player
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");

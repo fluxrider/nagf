@@ -111,6 +111,9 @@ void main(int argc, char * argv[]) {
   // states
   double px = 0;
   double py = 0;
+  struct rect forward;
+  forward.w = TS;
+  forward.h = TS;
 
   // game setup
   dprintf(snd, "stream bg.ogg\n");
@@ -334,11 +337,15 @@ void main(int argc, char * argv[]) {
           facing_index = (axis.ly < 0)? 2 : 0;
           // double up number of animation frame by mirroring half the time
           facing_mirror = (tick - walking_t0) % (walking_period * 2) < walking_period;
+          forward.y = py + collision.y + ((axis.ly < 0)? -forward.h : collision.h);
+          forward.x = px + collision.x - (forward.w - collision.w) / 2;
         }
         // left/right
         else {
           facing_index = 1;
           facing_mirror = axis.lx < 0; // left is right mirrored
+          forward.y = py + collision.y - (forward.h - collision.h) / 2;
+          forward.x = px + collision.x + ((axis.lx < 0)? -forward.w: collision.w);
         }
         // two-frame animation
         facing_frame = ((tick - walking_t0) % walking_period < walking_period/2)? 1 : 0;
@@ -393,6 +400,12 @@ void main(int argc, char * argv[]) {
         }
         if(!blocked_x) px = nx;
         if(!blocked_y) py = ny;
+      }
+      // activate whatever is forward
+      if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH)) {
+        if(item_id && collides_2D(&forward, &item)) {
+          printf("item activated\n");
+        }
       }
 
       // draw tilemap

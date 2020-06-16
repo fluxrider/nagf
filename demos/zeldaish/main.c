@@ -107,6 +107,8 @@ void main(int argc, char * argv[]) {
   struct map_node * warp_map;
   struct rect item;
   const char * item_id = NULL;
+  struct rect signpost;
+  char * signpost_id = NULL;
 
   // states
   double px = 0;
@@ -158,6 +160,8 @@ void main(int argc, char * argv[]) {
       layers_size = 0;
       warp_map = NULL;
       item_id = NULL;
+      if(signpost_id) free(signpost_id);
+      signpost_id = NULL;
       xmlDoc * doc = xmlParseFile(next_map->filename); if(!doc) { printf("xmlParseFile(%s) failed.\n", next_map->filename); exit(EXIT_FAILURE); }
       xmlNode * mcur = xmlDocGetRootElement(doc); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
       mcur = mcur->xmlChildrenNode;
@@ -305,6 +309,22 @@ void main(int argc, char * argv[]) {
                   xmlFree(name);
                   xmlFree(y);
                   xmlFree(x);
+                } else if(xmlStrcmp(type, "signpost") == 0) {
+                  xmlChar * x = xmlGetProp(node, "x");
+                  xmlChar * y = xmlGetProp(node, "y");
+                  xmlChar * w = xmlGetProp(node, "width");
+                  xmlChar * h = xmlGetProp(node, "height");
+                  xmlChar * name = xmlGetProp(node, "name");
+                  signpost.x = strtod(x, NULL);
+                  signpost.w = strtod(w, NULL);
+                  signpost.y = strtod(y, NULL);
+                  signpost.h = strtod(h, NULL);
+                  signpost_id = strdup(name);
+                  xmlFree(name);
+                  xmlFree(h);
+                  xmlFree(w);
+                  xmlFree(y);
+                  xmlFree(x);
                 }
               }
               xmlFree(type);
@@ -406,6 +426,9 @@ void main(int argc, char * argv[]) {
         if(item_id && collides_2D(&forward, &item)) {
           printf("item activated\n");
         }
+        if(signpost_id && collides_2D(&forward, &signpost)) {
+          printf("signpost %s\n", signpost_id);
+        }
       }
 
       // draw tilemap
@@ -461,6 +484,7 @@ void main(int argc, char * argv[]) {
   }
 
   // disconnect
+  if(signpost_id) free(signpost_id);
   dict_free(&blocking_tiles);
   dict_free(&animated_tiles);
   xmlFree(tileset_image);

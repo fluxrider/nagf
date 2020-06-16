@@ -258,6 +258,15 @@ class gfx_swing {
               g.setColor(fill);
               // TODO outline  color
               g.drawString(text.toString(), (int)x, (int)y);
+            } else if(command.startsWith("fill ")) {
+              String [] parts = command.split(" ");
+              Color fill = parse_color(parts[1]);
+              double x = Double.parseDouble(parts[2]);
+              double y = Double.parseDouble(parts[3]);
+              double w = Double.parseDouble(parts[4]);
+              double h = Double.parseDouble(parts[5]);
+              g.setColor(fill);
+              g.fillRect((int)x, (int)y, (int)w, (int)h);
             }
           }
         } catch(Throwable t) {

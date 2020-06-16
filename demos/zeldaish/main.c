@@ -118,9 +118,11 @@ void main(int argc, char * argv[]) {
   forward.h = TS;
 
   // game setup
+  int W = 256;
+  int H = 224;
   dprintf(snd, "stream bg.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
-  dprintf(gfx, "window 256 224\n");
+  dprintf(gfx, "window %d %d\n", W, H);
   dprintf(gfx, "cache princess.png\n");
   const char * candy_cane = "cane.resized.CC0.7soul1.png";
   const char * key = "key.resized.CC0.7soul1.png";
@@ -431,6 +433,8 @@ void main(int argc, char * argv[]) {
         }
       }
 
+      // hud
+      dprintf(gfx, "fill 000000 0 0 %d %d\n", W, HUD_H);
       // draw tilemap
       for(int i = 0; i < layers_size; i++) {
         for(int row = 0; row < MAP_ROW; row++) {

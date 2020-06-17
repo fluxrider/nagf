@@ -287,13 +287,6 @@ class gfx_swing {
                 text.append(' ');
               }
               text.setLength​(text.length() - 1);
-              // escape characters (e.g. \n)
-              /*
-              while(text.indexOf​("\\n") != -1) {
-                int escape = text.indexOf​("\\n"); // not very efficient, doing search twice, but hey
-                text.replace(escape, escape + 2, "\n");
-              }
-              */
 
               // debug
               g.setColor(new Color(0,100,100));
@@ -339,6 +332,11 @@ class gfx_swing {
               }
 
               // render with outline
+              Shape clip = null;
+              if(do_clip) {
+                clip = g.getClip();
+                g.clipRect((int)x,(int)y,(int)w,(int)h);
+              }
               for(GlyphVector gv : glyphs) {
                 Rectangle2D box = gv.getVisualBounds();
                 Shape shape = gv.getOutline((float)(x - box.getX()), (float)(y - box.getY()));
@@ -348,6 +346,9 @@ class gfx_swing {
                 g.setColor(outline);
                 g.draw(shape);
                 y += line_height;
+              }
+              if(do_clip) {
+                g.setClip(clip);
               }
             } else if(command.startsWith("fill ")) {
               String [] parts = command.split(" ");

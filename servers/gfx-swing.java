@@ -21,6 +21,9 @@ import javax.imageio.*;
 class gfx_swing {
 
   private static int W, H;
+  private static int _W, _H;
+  private static double _scale = 1;
+  private static boolean hq;
   private static boolean focused, quitting;
   private static BufferedImage backbuffer;
   private static BufferedImage frontbuffer;
@@ -136,6 +139,30 @@ class gfx_swing {
       }
     });
 
+    // recreate a backbuffer/frontbuffer on resize when in hq mode, not that the current frame will be corrupted TODO resize after flush
+    panel.addComponentListener(new ComponentAdapter() {
+      public void componentResized(ComponentEvent e) {
+        if(!hq) return;
+        System.out.println(panel.getWidth() + "x" + panel.getHeight());
+        // get new dimension, though respect aspect ratio of logical size
+        int pw = panel.getWidth();
+        int ph = panel.getHeight();
+        double a = W / (double) H;
+        double A = pw / (double) ph;
+        int _W = pw;
+        int _H = ph;
+        if (a / A > 1) _H = pw * H / W; else _W = ph * W / H;
+        if(_W < 1) _W = 1;
+        if(_H < 1) _H = 1;
+        _scale = _W / (double)W;
+        backbuffer = new BufferedImage(_W, _H, BufferedImage.TYPE_INT_ARGB);
+        frontbuffer = new BufferedImage(_W, _H, BufferedImage.TYPE_INT_RGB);
+        g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
+        g.scale(_scale, _scale);
+        _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
+      }
+    });
+
     // resources
     Map<String, Object> cache = new TreeMap<>();
 
@@ -184,6 +211,10 @@ class gfx_swing {
                 panel.setPreferredSize(new Dimension(W, H));
                 frame.pack();
                 frame.setLocationRelativeTo(null);
+                if(hq) {
+                  _W = W;
+                  _H = H;
+                }
     
                 // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
                 backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
@@ -201,6 +232,9 @@ class gfx_swing {
             } else if(command.startsWith("title ")) {
               System.out.println("setting title");
               frame.setTitle(command.substring(6));
+            } else if(command.equals("hq")) {
+              System.out.println("hq mode activated");
+              hq = true;
             } else if(command.startsWith("window ")) {
               System.out.println("setting window size");
               String [] dim = command.substring(7).split(" ");
@@ -279,6 +313,7 @@ class gfx_swing {
               double scroll = Double.parseDouble(parts[i++]);
               Color outline = parse_color(parts[i++]);
               Color fill = parse_color(parts[i++]);
+              double outline_size = Double.parseDouble(parts[i++]) / _scale;
               // rebuild text (TODO this is getting messy)
               StringBuilder text = new StringBuilder();
               while(i < parts.length) {
@@ -332,6 +367,7 @@ class gfx_swing {
 
               // render with outline
               y += scroll;
+              y += outline_size;
               Shape clip = null;
               if(do_clip) {
                 clip = g.getClip();
@@ -339,13 +375,13 @@ class gfx_swing {
               }
               for(GlyphVector gv : glyphs) {
                 Rectangle2D box = gv.getVisualBounds();
-                double tx = x - box.getX();
-                if(halign.equals("right")) tx += w - box.getWidth() - 1;
-                else if(halign.equals("center")) tx += (w - box.getWidth() - 1) / 2;
-                Shape shape = gv.getOutline((float)tx, (float)(y - box.getY()));
+                double tx = x - box.getX() + outline_size;
+                if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
+                else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
+                Shape shape = gv.getOutline((float)tx, (float)(y - box.getY())); // TODO something is off when box.h is lower than line_height
                 g.setColor(fill);
                 g.fill(shape);
-                g.setStroke(new BasicStroke(1f)); // TODO parametize
+                g.setStroke(new BasicStroke((float)outline_size));
                 g.setColor(outline);
                 g.draw(shape);
                 y += line_height;

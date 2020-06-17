@@ -125,6 +125,7 @@ void main(int argc, char * argv[]) {
   int _H = H * scale;
   dprintf(snd, "stream bg.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
+  dprintf(gfx, "hq\n");
   dprintf(gfx, "window %d %d\n", _W, _H);
   dprintf(gfx, "cache DejaVuSans-Bold.ttf 32\n");
   dprintf(gfx, "cache princess.png\n");
@@ -477,7 +478,7 @@ void main(int argc, char * argv[]) {
 
       // tmp
       // TODO I feel like font should never be scaled
-      dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 center 2 noclip -10 ffffff 000000 Helyo there.\\nBobo wantsssssssssssssssss to see you, yes you you you you yeah yeah.\n");
+      dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 right 2 noclip 0 ffffff 000000 1 Hello there.\\nBobo wants to see ytou.\n");
     }
     // flush
     dprintf(gfx, "flush\n");
@@ -490,7 +491,7 @@ void main(int argc, char * argv[]) {
     delta_time = *(int *)&gmm->msg[i] / 1000.0;
     if(tick > 1000 && delta_time > delta_time_worst) delta_time_worst = delta_time;
     i+= 4;
-    printf("%d\t%d\n", (int)(delta_time_worst * 1000), (int)(delta_time * 1000));
+    //printf("%d\t%d\n", (int)(delta_time_worst * 1000), (int)(delta_time * 1000));
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
     int w = *(int *)&gmm->msg[i]; i+= 4;

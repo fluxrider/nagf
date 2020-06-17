@@ -6,6 +6,8 @@ import java.io.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.*;
+import java.awt.font.*;
+import java.awt.geom.*;
 import java.util.*;
 import java.util.List;
 import java.util.stream.*;
@@ -36,8 +38,16 @@ class gfx_swing {
     Semaphore queue_list = new Semaphore(0);
 
     // smooth scaling, smooth text
+    Map<RenderingHints.Key, Object> hints_g;
     Map<RenderingHints.Key, Object> hints;
     Map<RenderingHints.Key, Object> hints_low;
+    hints_g = new HashMap<RenderingHints.Key, Object>();
+    hints_g.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+    hints_g.put(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    hints_g.put(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+    hints_g.put(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    hints_g.put(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+    hints_g.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
     hints = new HashMap<RenderingHints.Key, Object>();
     hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
     hints.put(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -161,6 +171,7 @@ class gfx_swing {
     Thread fifo = new Thread(new Runnable() {
       public void run() {
         try {
+          AffineTransform stored = null;
           while(true) {
             String command;
             queue_list.acquire();
@@ -177,7 +188,7 @@ class gfx_swing {
                 // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
                 backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
                 frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
-                g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints);
+                g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
                 _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
 
                 // show window
@@ -195,6 +206,16 @@ class gfx_swing {
               String [] dim = command.substring(7).split(" ");
               W = Integer.parseInt(dim[0]);
               H = Integer.parseInt(dim[1]);
+            } else if(command.startsWith("scale ")) {
+              String [] parts = command.split(" ");
+              double sx = Double.parseDouble(parts[1]);
+              double sy = 2 < parts.length? Double.parseDouble(parts[2]) : sx;
+              if(stored != null) throw new RuntimeException("scale isn't a stack, there is only one");
+              stored = g.getTransform();
+              g.scale(sx, sy);
+            } else if(command.equals("unscale")) {
+              g.setTransform(stored);
+              stored = null;
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
               // fonts have sizes after the path
@@ -206,7 +227,7 @@ class gfx_swing {
                 Map<Float, Font> fonts = new TreeMap<>();
                 for(int i = 1; i < parts.length; i++) {
                   Float size = Float.valueOf(parts[i]);
-                  fonts.put(size, font.deriveFont(size));
+                  fonts.put(size, font.deriveFont(size)); // TODO 'size' in nagf must match the height of capital 'A' in pixel
                 }
                 cache.put(path, fonts);
               }
@@ -241,23 +262,49 @@ class gfx_swing {
                 }
               }
             } else if(command.startsWith("text ")) {
+              // text font size x y w h valign halign multiline clip scroll outline_color fill_color message
+              // text my.ttf 16 10 10 100 100 bottom center multi clip -25 000000 ffffff Hello there.\nBobo wants to see you.
               String [] parts = command.split(" ");
-              String path = parts[1];
-              Float size = Float.valueOf(parts[2]);
-              double x = Double.parseDouble(parts[3]);
-              double y = Double.parseDouble(parts[4]);
-              Color fill = parse_color(parts[5]);
-              Color outline = parse_color(parts[6]);
+              int i = 1;
+              String path = parts[i++];
+              Float size = Float.valueOf(parts[i++]);
+              double x = Double.parseDouble(parts[i++]);
+              double y = Double.parseDouble(parts[i++]);
+              double w = Double.parseDouble(parts[i++]);
+              double h = Double.parseDouble(parts[i++]);
+              String valign = parts[i++];
+              String halign = parts[i++];
+              boolean multiline = parts[i++].equals("multi");
+              boolean do_clip = parts[i++].equals("clip");
+              double scroll = Double.parseDouble(parts[i++]);
+              Color outline = parse_color(parts[i++]);
+              Color fill = parse_color(parts[i++]);
               // rebuild text (TODO this is getting messy)
               StringBuilder text = new StringBuilder();
-              for(int i = 7; i < parts.length; i++) {
-                text.append(parts[i]);
+              while(i < parts.length) {
+                text.append(parts[i++]);
                 text.append(' ');
               }
-              g.setFont(((Map<Float, Font>)cache.get(path)).get(size));
+              text.setLength​(text.length() - 1);
+              // escape characters (e.g. \n)
+              while(text.indexOf​("\\n") != -1) {
+                int escape = text.indexOf​("\\n"); // not very efficient, doing search twice, but hey
+                text.replace(escape, escape + 2, "\n");
+              }
+              // and draw
+              //g.setFont(((Map<Float, Font>)cache.get(path)).get(size));
+              //g.setColor(fill);
+              //g.drawString(text.toString(), (int)x, (int)y);
+              FontRenderContext frc = g.getFontRenderContext();
+              Font font = ((Map<Float, Font>)cache.get(path)).get(size);
+              GlyphVector gv = font.createGlyphVector(frc, text.toString());
+              Rectangle2D box = gv.getVisualBounds();
+              Shape shape = gv.getOutline((int)(x - box.getX()), (int)(y - box.getY()));
               g.setColor(fill);
-              // TODO outline  color
-              g.drawString(text.toString(), (int)x, (int)y);
+              g.fill(shape);
+              g.setStroke(new BasicStroke(1f)); // TODO parametize
+              g.setColor(outline);
+              g.draw(shape);
             } else if(command.startsWith("fill ")) {
               String [] parts = command.split(" ");
               Color fill = parse_color(parts[1]);
@@ -392,7 +439,7 @@ class gfx_swing {
   }
   
   private static Color parse_color(String hex) {
-    // from https://stackoverflow.com/questions/4129666/how-to-convert-hex-to-rgb-using-java, Ian Newland
+    // inspired by https://stackoverflow.com/questions/4129666/how-to-convert-hex-to-rgb-using-java, Ian Newland
     switch(hex.length()) {
       case 6:
         return new Color(
@@ -401,10 +448,10 @@ class gfx_swing {
         Integer.valueOf(hex.substring(4, 6), 16));
       case 8:
         return new Color(
-        Integer.valueOf(hex.substring(0, 2), 16),
         Integer.valueOf(hex.substring(2, 4), 16),
         Integer.valueOf(hex.substring(4, 6), 16),
-        Integer.valueOf(hex.substring(6, 8), 16));
+        Integer.valueOf(hex.substring(6, 8), 16),
+        Integer.valueOf(hex.substring(0, 2), 16));
     }
     return null;
   }

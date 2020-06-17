@@ -262,19 +262,20 @@ class gfx_swing {
                 }
               }
             } else if(command.startsWith("text ")) {
-              // text font size x y w h valign halign multiline clip scroll outline_color fill_color message
-              // text my.ttf 16 10 10 100 100 bottom center multi clip -25 000000 ffffff Hello there.\nBobo wants to see you.
+              // text font x y w h valign halign line_count clip scroll outline_color fill_color message
               String [] parts = command.split(" ");
               int i = 1;
               String path = parts[i++];
-              Float size = Float.valueOf(parts[i++]);
+              boolean tight = parts[i].equals("tight");
+              if(tight) i++;
               double x = Double.parseDouble(parts[i++]);
               double y = Double.parseDouble(parts[i++]);
               double w = Double.parseDouble(parts[i++]);
               double h = Double.parseDouble(parts[i++]);
               String valign = parts[i++];
               String halign = parts[i++];
-              boolean multiline = parts[i++].equals("multi");
+              int line_count = Integer.parseInt(parts[i++]);
+              double line_height = h / line_count;
               boolean do_clip = parts[i++].equals("clip");
               double scroll = Double.parseDouble(parts[i++]);
               Color outline = parse_color(parts[i++]);
@@ -287,24 +288,65 @@ class gfx_swing {
               }
               text.setLength​(text.length() - 1);
               // escape characters (e.g. \n)
+              /*
               while(text.indexOf​("\\n") != -1) {
                 int escape = text.indexOf​("\\n"); // not very efficient, doing search twice, but hey
                 text.replace(escape, escape + 2, "\n");
               }
-              // and draw
-              //g.setFont(((Map<Float, Font>)cache.get(path)).get(size));
-              //g.setColor(fill);
-              //g.drawString(text.toString(), (int)x, (int)y);
+              */
+
+              // debug
+              g.setColor(new Color(0,100,100));
+              g.fillRect((int)x, (int)y, (int)w, (int)h);
+
+              // get font size
               FontRenderContext frc = g.getFontRenderContext();
-              Font font = ((Map<Float, Font>)cache.get(path)).get(size);
-              GlyphVector gv = font.createGlyphVector(frc, text.toString());
-              Rectangle2D box = gv.getVisualBounds();
-              Shape shape = gv.getOutline((int)(x - box.getX()), (int)(y - box.getY()));
-              g.setColor(fill);
-              g.fill(shape);
-              g.setStroke(new BasicStroke(1f)); // TODO parametize
-              g.setColor(outline);
-              g.draw(shape);
+              Font font = ((Map<Float, Font>)cache.get(path)).values().iterator().next();
+              font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
+
+              // break explicit \n into multiple lines
+              String t = text.toString();
+              List<String> lines = new ArrayList<>();
+              int escape = t.indexOf​("\\n");
+              while(escape != -1) {
+                lines.add(text.substring(0, escape));
+                t = text.substring(escape + 2);
+                escape = t.indexOf​("\\n");
+              }
+              lines.add(t);
+
+              // text to glyph, break lines and repeat
+              ListIterator<String> itr = lines.listIterator();
+              List<GlyphVector> glyphs = new ArrayList<>();
+              while(itr.hasNext()) {
+                String line = itr.next();
+                int end = line.length();
+                GlyphVector gv = font.createGlyphVector(frc, line);
+                Rectangle2D box = gv.getVisualBounds();
+                while(box.getWidth() > w) {
+                  // move to previous space
+                  end = line.substring(0, end).lastIndexOf(' ');
+                  gv = font.createGlyphVector(frc, line.substring(0, end));
+                  box = gv.getVisualBounds();
+                }
+                glyphs.add(gv);
+                if(end != line.length()) {
+                  itr.add(line.substring(end));
+                  itr.previous();
+                }
+              }
+
+              // render with outline
+              for(GlyphVector gv : glyphs) {
+                Rectangle2D box = gv.getVisualBounds();
+                Shape shape = gv.getOutline((float)(x - box.getX()), (float)(y - box.getY()));
+                g.setColor(fill);
+                g.fill(shape);
+                g.setStroke(new BasicStroke(1f)); // TODO parametize
+                g.setColor(outline);
+                g.draw(shape);
+                y += line_height;
+              }
             } else if(command.startsWith("fill ")) {
               String [] parts = command.split(" ");
               Color fill = parse_color(parts[1]);

@@ -332,6 +332,7 @@ class gfx_swing {
               }
 
               // render with outline
+              y += scroll;
               Shape clip = null;
               if(do_clip) {
                 clip = g.getClip();
@@ -339,7 +340,10 @@ class gfx_swing {
               }
               for(GlyphVector gv : glyphs) {
                 Rectangle2D box = gv.getVisualBounds();
-                Shape shape = gv.getOutline((float)(x - box.getX()), (float)(y - box.getY()));
+                double tx = x - box.getX();
+                if(halign.equals("right")) tx += w - box.getWidth() - 1;
+                else if(halign.equals("center")) tx += (w - box.getWidth() - 1) / 2;
+                Shape shape = gv.getOutline((float)tx, (float)(y - box.getY()));
                 g.setColor(fill);
                 g.fill(shape);
                 g.setStroke(new BasicStroke(1f)); // TODO parametize

@@ -262,7 +262,7 @@ class gfx_swing {
                 }
               }
             } else if(command.startsWith("text ")) {
-              // text font x y w h valign halign line_count clip scroll outline_color fill_color message
+              // text font x y w h halign line_count clip scroll outline_color fill_color message
               String [] parts = command.split(" ");
               int i = 1;
               String path = parts[i++];
@@ -272,7 +272,6 @@ class gfx_swing {
               double y = Double.parseDouble(parts[i++]);
               double w = Double.parseDouble(parts[i++]);
               double h = Double.parseDouble(parts[i++]);
-              String valign = parts[i++];
               String halign = parts[i++];
               int line_count = Integer.parseInt(parts[i++]);
               double line_height = h / line_count;

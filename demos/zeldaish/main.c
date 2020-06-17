@@ -477,7 +477,7 @@ void main(int argc, char * argv[]) {
 
       // tmp
       // TODO I feel like font should never be scaled
-      dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 bottom center 2 noclip -10 ffffff 000000 Helyo there.\\nBobo wantsssssssssssssssss to see you, yes you you you you yeah yeah.\n");
+      dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 center 2 noclip -10 ffffff 000000 Helyo there.\\nBobo wantsssssssssssssssss to see you, yes you you you you yeah yeah.\n");
     }
     // flush
     dprintf(gfx, "flush\n");

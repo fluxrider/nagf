@@ -325,13 +325,15 @@ class gfx_swing {
                 Rectangle2D box = gv.getVisualBounds();
                 while(box.getWidth() > w) {
                   // move to previous space
-                  end = line.substring(0, end).lastIndexOf(' ');
+                  int new_end = line.substring(0, end).lastIndexOf(' ');
+                  if(new_end == -1) break; // we did our best
+                  end = new_end;
                   gv = font.createGlyphVector(frc, line.substring(0, end));
                   box = gv.getVisualBounds();
                 }
                 glyphs.add(gv);
                 if(end != line.length()) {
-                  itr.add(line.substring(end));
+                  itr.add(line.substring(end+1));
                   itr.previous();
                 }
               }

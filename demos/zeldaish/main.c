@@ -470,8 +470,9 @@ void main(int argc, char * argv[]) {
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
 
       // tmp
-      dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 right 2 noclip 0 ffffff 000000 1 Hello there.\\nBoyo wants to see you.\n");
-      dprintf(gfx, "text DejaVuSans-Bold.ttf tight 10 100 200 32 left 2 noclip 0 ffffff 000000 1 ABC\\n123\n");
+      //dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 right 2 noclip 0 ffffff 000000 1 Hello there.\\nBoyo wants to see you.\n");
+      //dprintf(gfx, "text DejaVuSans-Bold.ttf tight 10 100 200 32 left 2 noclip 0 ffffff 000000 1 ABC\\n123\n");
+      dprintf(gfx, "text DejaVuSans-Bold.ttf 1 0 255 16 left 2 noclip 0 ffffff 00ff00 0 ms:%d\\nfps:%2.1f\n", (int)(delta_time * 1000), 1 / (double)delta_time);
     }
     // flush
     dprintf(gfx, "flush\n");

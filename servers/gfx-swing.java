@@ -389,9 +389,11 @@ class gfx_swing {
                   Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent)); // TODO something is off when box.h is lower than line_height
                   g.setColor(fill);
                   g.fill(shape);
-                  g.setStroke(new BasicStroke((float)outline_size));
-                  g.setColor(outline);
-                  g.draw(shape);
+                  if(outline_size > 0) {
+                    g.setStroke(new BasicStroke((float)outline_size));
+                    g.setColor(outline);
+                    g.draw(shape);
+                  }
                   y += line_height;
                 }
                 if(do_clip) {

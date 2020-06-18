@@ -439,7 +439,7 @@ void main(int argc, char * argv[]) {
       }
 
       // world scale
-      dprintf(gfx, "scale %d\n", scale);
+      //dprintf(gfx, "scale %d\n", scale);
       // hud
       dprintf(gfx, "fill 000000 0 0 %d %d\n", W, HUD_H);
       // draw tilemap
@@ -474,7 +474,7 @@ void main(int argc, char * argv[]) {
       // draw player
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
       // world scaling end
-      dprintf(gfx, "unscale\n", scale);
+      //dprintf(gfx, "unscale\n", scale);
 
       // tmp
       // TODO I feel like font should never be scaled

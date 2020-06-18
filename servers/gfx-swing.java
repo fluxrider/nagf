@@ -21,7 +21,6 @@ import javax.imageio.*;
 class gfx_swing {
 
   private static int W, H;
-  private static int _W, _H;
   private static double _scale = 1;
   private static boolean hq;
   private static boolean focused, quitting;
@@ -29,7 +28,7 @@ class gfx_swing {
   private static BufferedImage frontbuffer;
   private static Graphics2D g;
   private static Graphics2D _g;
-
+  
   // main
   public static void main(String[] args) throws Exception {
     String shm_path = args[0];
@@ -39,6 +38,8 @@ class gfx_swing {
     Semaphore flush_pre = new Semaphore(0);
     Semaphore flush_post = new Semaphore(0);
     Semaphore queue_list = new Semaphore(0);
+    Object frontbuffer_mutex = new Object();
+    Object backbuffer_mutex = new Object();
 
     // smooth scaling, smooth text
     Map<RenderingHints.Key, Object> hints_g;
@@ -69,7 +70,7 @@ class gfx_swing {
     // the panel scale-paints the front buffer on itself on each repaint call
     JPanel panel = new JPanel() {
       public void paint(Graphics g) {
-        synchronized (frontbuffer) {
+        synchronized (frontbuffer_mutex) {
           int W = this.getWidth();
           int H = this.getHeight();
           int w = frontbuffer.getWidth();
@@ -143,6 +144,7 @@ class gfx_swing {
     panel.addComponentListener(new ComponentAdapter() {
       public void componentResized(ComponentEvent e) {
         if(!hq) return;
+        if(backbuffer == null) throw new RuntimeException("didn't expect a resize before first flush");
         System.out.println(panel.getWidth() + "x" + panel.getHeight());
         // get new dimension, though respect aspect ratio of logical size
         int pw = panel.getWidth();
@@ -154,12 +156,16 @@ class gfx_swing {
         if (a / A > 1) _H = pw * H / W; else _W = ph * W / H;
         if(_W < 1) _W = 1;
         if(_H < 1) _H = 1;
-        _scale = _W / (double)W;
-        backbuffer = new BufferedImage(_W, _H, BufferedImage.TYPE_INT_ARGB);
-        frontbuffer = new BufferedImage(_W, _H, BufferedImage.TYPE_INT_RGB);
-        g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
-        g.scale(_scale, _scale);
-        _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
+        synchronized(backbuffer_mutex) {
+          backbuffer = new BufferedImage(_W, _H, BufferedImage.TYPE_INT_ARGB);
+          g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
+          _scale = _W / (double)W;
+          g.scale(_scale, _scale);
+          synchronized(frontbuffer_mutex) {
+            frontbuffer = new BufferedImage(_W, _H, BufferedImage.TYPE_INT_RGB);
+            _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
+          }
+        }
       }
     });
 
@@ -198,7 +204,7 @@ class gfx_swing {
     Thread fifo = new Thread(new Runnable() {
       public void run() {
         try {
-          AffineTransform stored = null;
+          AffineTransform stored_at = null;
           while(true) {
             String command;
             queue_list.acquire();
@@ -208,13 +214,6 @@ class gfx_swing {
               if(backbuffer == null) {
                 if(W == 0) W = 800;
                 if(H == 0) H = 450;
-                panel.setPreferredSize(new Dimension(W, H));
-                frame.pack();
-                frame.setLocationRelativeTo(null);
-                if(hq) {
-                  _W = W;
-                  _H = H;
-                }
     
                 // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
                 backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
@@ -223,6 +222,9 @@ class gfx_swing {
                 _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
 
                 // show window
+                panel.setPreferredSize(new Dimension(W, H));
+                frame.pack();
+                frame.setLocationRelativeTo(null);
                 frame.setVisible(true);
               }
 
@@ -238,18 +240,24 @@ class gfx_swing {
             } else if(command.startsWith("window ")) {
               System.out.println("setting window size");
               String [] dim = command.substring(7).split(" ");
+              if(backbuffer != null) throw new RuntimeException("there is no support for changing logical size after the fact");
               W = Integer.parseInt(dim[0]);
               H = Integer.parseInt(dim[1]);
             } else if(command.startsWith("scale ")) {
               String [] parts = command.split(" ");
               double sx = Double.parseDouble(parts[1]);
               double sy = 2 < parts.length? Double.parseDouble(parts[2]) : sx;
-              if(stored != null) throw new RuntimeException("scale isn't a stack, there is only one");
-              stored = g.getTransform();
-              g.scale(sx, sy);
+              if(stored_at != null) throw new RuntimeException("scale isn't a stack, there is only one");
+              synchronized(backbuffer_mutex) {
+                // NOTE: this breaks if there is a hq resize before unscale... not sure if I want to support scaling anyway
+                stored_at = g.getTransform();
+                g.scale(sx, sy);
+              }
             } else if(command.equals("unscale")) {
-              g.setTransform(stored);
-              stored = null;
+              synchronized(backbuffer_mutex) {
+                g.setTransform(stored_at);
+              }
+              stored_at = null;
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
               // fonts have sizes after the path
@@ -280,7 +288,9 @@ class gfx_swing {
               if(parts.length == 4) {
                 int x = (int)Double.parseDouble(parts[i++]);
                 int y = (int)Double.parseDouble(parts[i++]);
-                g.drawImage((BufferedImage)cache.get(path), x, y, null);
+                synchronized(backbuffer_mutex) {
+                  g.drawImage((BufferedImage)cache.get(path), x, y, null);
+                }
               } else {
                 int sx = (int)Double.parseDouble(parts[i++]);
                 int sy = (int)Double.parseDouble(parts[i++]);
@@ -289,10 +299,12 @@ class gfx_swing {
                 int x = (int)Double.parseDouble(parts[i++]);
                 int y = (int)Double.parseDouble(parts[i++]);
                 boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
-                if(mirror_x) {
-                  g.drawImage((BufferedImage)cache.get(path), x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
-                } else {
-                  g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+                synchronized(backbuffer_mutex) {
+                  if(mirror_x) {
+                    g.drawImage((BufferedImage)cache.get(path), x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
+                  } else {
+                    g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+                  }
                 }
               }
             } else if(command.startsWith("text ")) {
@@ -322,74 +334,75 @@ class gfx_swing {
               }
               text.setLength​(text.length() - 1);
 
-              // debug
-              g.setColor(new Color(0,100,100));
-              g.fillRect((int)x, (int)y, (int)w, (int)h);
+              synchronized(backbuffer_mutex) {
+                // debug
+                g.setColor(new Color(0,100,100));
+                g.fillRect((int)x, (int)y, (int)w, (int)h);
 
-              // get font size
-              FontRenderContext frc = g.getFontRenderContext();
-              Font font = ((Map<Float, Font>)cache.get(path)).values().iterator().next();
-              font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
+                // get font size
+                FontRenderContext frc = g.getFontRenderContext();
+                Font font = ((Map<Float, Font>)cache.get(path)).values().iterator().next();
+                font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
 
-              // break explicit \n into multiple lines
-              String t = text.toString();
-              List<String> lines = new ArrayList<>();
-              int escape = t.indexOf​("\\n");
-              while(escape != -1) {
-                lines.add(text.substring(0, escape));
-                t = text.substring(escape + 2);
-                escape = t.indexOf​("\\n");
-              }
-              lines.add(t);
-
-              // text to glyph, break lines and repeat
-              ListIterator<String> itr = lines.listIterator();
-              List<GlyphVector> glyphs = new ArrayList<>();
-              while(itr.hasNext()) {
-                String line = itr.next();
-                int end = line.length();
-                GlyphVector gv = font.createGlyphVector(frc, line);
-                Rectangle2D box = gv.getVisualBounds();
-                while(box.getWidth() > w) {
-                  // move to previous space
-                  int new_end = line.substring(0, end).lastIndexOf(' ');
-                  if(new_end == -1) break; // we did our best
-                  end = new_end;
-                  gv = font.createGlyphVector(frc, line.substring(0, end));
-                  box = gv.getVisualBounds();
+                // break explicit \n into multiple lines
+                String t = text.toString();
+                List<String> lines = new ArrayList<>();
+                int escape = t.indexOf​("\\n");
+                while(escape != -1) {
+                  lines.add(text.substring(0, escape));
+                  t = text.substring(escape + 2);
+                  escape = t.indexOf​("\\n");
                 }
-                glyphs.add(gv);
-                if(end != line.length()) {
-                  itr.add(line.substring(end+1));
-                  itr.previous();
-                }
-              }
+                lines.add(t);
 
-              // render with outline
-              double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
-              y += scroll;
-              y += outline_size;
-              Shape clip = null;
-              if(do_clip) {
-                clip = g.getClip();
-                g.clipRect((int)x,(int)y,(int)w,(int)h);
-              }
-              for(GlyphVector gv : glyphs) {
-                Rectangle2D box = gv.getVisualBounds();
-                //System.out.println(box);
-                double tx = x - box.getX() + outline_size;
-                if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
-                else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
-                Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent)); // TODO something is off when box.h is lower than line_height
-                g.setColor(fill);
-                g.fill(shape);
-                g.setStroke(new BasicStroke((float)outline_size));
-                g.setColor(outline);
-                g.draw(shape);
-                y += line_height;
-              }
-              if(do_clip) {
-                g.setClip(clip);
+                // text to glyph, break lines and repeat
+                ListIterator<String> itr = lines.listIterator();
+                List<GlyphVector> glyphs = new ArrayList<>();
+                while(itr.hasNext()) {
+                  String line = itr.next();
+                  int end = line.length();
+                  GlyphVector gv = font.createGlyphVector(frc, line);
+                  Rectangle2D box = gv.getVisualBounds();
+                  while(box.getWidth() > w) {
+                    // move to previous space
+                    int new_end = line.substring(0, end).lastIndexOf(' ');
+                    if(new_end == -1) break; // we did our best
+                    end = new_end;
+                    gv = font.createGlyphVector(frc, line.substring(0, end));
+                    box = gv.getVisualBounds();
+                  }
+                  glyphs.add(gv);
+                  if(end != line.length()) {
+                    itr.add(line.substring(end+1));
+                    itr.previous();
+                  }
+                }
+
+                // render with outline
+                double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
+                y += scroll;
+                y += outline_size;
+                Shape clip = null;
+                if(do_clip) {
+                  clip = g.getClip();
+                  g.clipRect((int)x,(int)y,(int)w,(int)h);
+                }
+                for(GlyphVector gv : glyphs) {
+                  Rectangle2D box = gv.getVisualBounds();
+                  double tx = x - box.getX() + outline_size;
+                  if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
+                  else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
+                  Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent)); // TODO something is off when box.h is lower than line_height
+                  g.setColor(fill);
+                  g.fill(shape);
+                  g.setStroke(new BasicStroke((float)outline_size));
+                  g.setColor(outline);
+                  g.draw(shape);
+                  y += line_height;
+                }
+                if(do_clip) {
+                  g.setClip(clip);
+                }
               }
             } else if(command.startsWith("fill ")) {
               String [] parts = command.split(" ");
@@ -398,8 +411,10 @@ class gfx_swing {
               double y = Double.parseDouble(parts[3]);
               double w = Double.parseDouble(parts[4]);
               double h = Double.parseDouble(parts[5]);
-              g.setColor(fill);
-              g.fillRect((int)x, (int)y, (int)w, (int)h);
+              synchronized(backbuffer_mutex) {
+                g.setColor(fill);
+                g.fillRect((int)x, (int)y, (int)w, (int)h);
+              }
             }
           }
         } catch(Throwable t) {
@@ -433,7 +448,9 @@ class gfx_swing {
                 flush_pre.acquire();
                 // flush our drawing to the screen
                 if(!quitting) {
-                  synchronized (frontbuffer) { _g.drawImage(backbuffer, 0, 0, null); }
+                  synchronized(backbuffer_mutex) {
+                    synchronized(frontbuffer_mutex) { _g.drawImage(backbuffer, 0, 0, null); }
+                  }
                   panel.repaint();
                   Thread.yield();
                 }

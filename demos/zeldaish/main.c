@@ -120,14 +120,11 @@ void main(int argc, char * argv[]) {
   // game setup
   int W = 256;
   int H = 224;
-  int scale = 1;
-  int _W = W * scale;
-  int _H = H * scale;
   //dprintf(snd, "stream bg.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
   dprintf(gfx, "hq\n");
-  dprintf(gfx, "window %d %d\n", _W, _H);
-  dprintf(gfx, "cache DejaVuSans-Bold.ttf 32\n");
+  dprintf(gfx, "window %d %d\n", W, H);
+  dprintf(gfx, "cache DejaVuSans-Bold.ttf\n");
   dprintf(gfx, "cache princess.png\n");
   const char * candy_cane = "cane.resized.CC0.7soul1.png";
   const char * key = "key.resized.CC0.7soul1.png";
@@ -438,8 +435,6 @@ void main(int argc, char * argv[]) {
         }
       }
 
-      // world scale
-      //dprintf(gfx, "scale %d\n", scale);
       // hud
       dprintf(gfx, "fill 000000 0 0 %d %d\n", W, HUD_H);
       // draw tilemap
@@ -473,11 +468,8 @@ void main(int argc, char * argv[]) {
       }
       // draw player
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
-      // world scaling end
-      //dprintf(gfx, "unscale\n", scale);
 
       // tmp
-      // TODO I feel like font should never be scaled
       dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 right 2 noclip 0 ffffff 000000 1 Hello there.\\nBoyo wants to see you.\n");
       dprintf(gfx, "text DejaVuSans-Bold.ttf tight 10 100 200 32 left 2 noclip 0 ffffff 000000 1 ABC\\n123\n");
     }

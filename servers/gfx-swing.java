@@ -260,23 +260,21 @@ class gfx_swing {
               stored_at = null;
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
-              // fonts have sizes after the path
-              String [] parts = path.split(" ");
-              if(parts.length > 1) {
+              if(path.endsWith(".ttf")) {
                 System.out.println("caching a font: " + path);
-                path = parts[0];
-                Font font = Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path));
-                Map<Float, Font> fonts = new TreeMap<>();
-                for(int i = 1; i < parts.length; i++) {
-                  Float size = Float.valueOf(parts[i]);
-                  fonts.put(size, font.deriveFont(size)); // TODO 'size' in nagf must match the height of capital 'A' in pixel
+                try {
+                  cache.put(path, Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path)));
+                } catch(Exception e) { 
+                  System.out.println("error caching font " + e);
+                  cache.put(path, e);
                 }
-                cache.put(path, fonts);
               }
-              // if not it's an image
+              // anything but .ttf goes through ImageIO
               else {
                 System.out.println("caching an image: " + path);
-                try {cache.put(path, ImageIO.read(new File(path))); } catch(Exception e) { 
+                try {
+                  cache.put(path, ImageIO.read(new File(path)));
+                } catch(Exception e) { 
                   System.out.println("error caching image " + e);
                   cache.put(path, e);
                 }
@@ -335,13 +333,9 @@ class gfx_swing {
               text.setLength​(text.length() - 1);
 
               synchronized(backbuffer_mutex) {
-                // debug
-                g.setColor(new Color(0,100,100));
-                g.fillRect((int)x, (int)y, (int)w, (int)h);
-
                 // get font size
                 FontRenderContext frc = g.getFontRenderContext();
-                Font font = ((Map<Float, Font>)cache.get(path)).values().iterator().next();
+                Font font = (Font)cache.get(path);
                 font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
 
                 // break explicit \n into multiple lines
@@ -504,7 +498,7 @@ class gfx_swing {
                   BufferedImage image = (BufferedImage)res;
                   srr.msg.putInt(image.getWidth());
                   srr.msg.putInt(image.getHeight());
-                } else if(res instanceof Map) {
+                } else if(res instanceof Font) {
                   srr.msg.put((byte)2);
                   // new Canvas().getFontMetrics(font);
                 } else if(res instanceof Progress) {

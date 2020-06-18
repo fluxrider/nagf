@@ -366,6 +366,7 @@ class gfx_swing {
               }
 
               // render with outline
+              double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
               y += scroll;
               y += outline_size;
               Shape clip = null;
@@ -375,10 +376,11 @@ class gfx_swing {
               }
               for(GlyphVector gv : glyphs) {
                 Rectangle2D box = gv.getVisualBounds();
+                //System.out.println(box);
                 double tx = x - box.getX() + outline_size;
                 if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
                 else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
-                Shape shape = gv.getOutline((float)tx, (float)(y - box.getY())); // TODO something is off when box.h is lower than line_height
+                Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent)); // TODO something is off when box.h is lower than line_height
                 g.setColor(fill);
                 g.fill(shape);
                 g.setStroke(new BasicStroke((float)outline_size));

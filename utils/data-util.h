@@ -23,3 +23,4 @@ void dict_init(struct dict * self, size_t memcpy_size, bool key_str, bool dup_st
 void dict_free(struct dict * self);
 void dict_set(struct dict * self, intptr_t key, intptr_t val);
 intptr_t dict_get(struct dict * self, intptr_t key);
+intptr_t dict_get_by_index(struct dict * self, size_t i);

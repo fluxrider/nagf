@@ -113,6 +113,13 @@ void main(int argc, char * argv[]) {
   dict_init(&npcs, 0, true, false);
   dict_set(&npcs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
   const char * message = NULL;
+  struct dict npc_res;
+  dict_init(&npc_res, 0, true, false);
+  dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
+  dict_set(&npc_res, "dragon", "dragon.CC0.crawl-tiles.png");
+  dict_set(&npc_res, "wizard", "human.CC0.crawl-tiles.png");
+  dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
+  for(int i = 0; i < npc_res.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&npc_res, i));
 
   // states
   double px = 0;
@@ -130,23 +137,14 @@ void main(int argc, char * argv[]) {
   dprintf(gfx, "window %d %d\n", W, H);
   dprintf(gfx, "cache DejaVuSans-Bold.ttf\n");
   dprintf(gfx, "cache princess.png\n");
-  const char * candy_cane = "cane.resized.CC0.7soul1.png";
-  const char * key = "key.resized.CC0.7soul1.png";
-  const char * bottle = "bottle.resized.CC0.7soul1.png";
-  const char * water = "water.resized.CC0.7soul1.png";
-  const char * heart = "heart.resized.CC0.7soul1.png";
-  dprintf(gfx, "cache %s\n", candy_cane);
-  dprintf(gfx, "cache %s\n", key);
-  dprintf(gfx, "cache %s\n", bottle);
-  dprintf(gfx, "cache %s\n", water);
-  dprintf(gfx, "cache %s\n", heart);
   struct dict items;
   dict_init(&items, 0, true, false);
-  dict_set(&items, "cane", candy_cane);
-  dict_set(&items, "key", key);
-  dict_set(&items, "bottle", bottle);
-  dict_set(&items, "water", water);
-  dict_set(&items, "heart", heart);
+  dict_set(&items, "cane", "cane.resized.CC0.7soul1.png");
+  dict_set(&items, "key", "key.resized.CC0.7soul1.png");
+  dict_set(&items, "bottle", "bottle.resized.CC0.7soul1.png");
+  dict_set(&items, "water", "water.resized.CC0.7soul1.png");
+  dict_set(&items, "heart", "heart.resized.CC0.7soul1.png");
+  for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
 
   // game loop
   bool running = true;

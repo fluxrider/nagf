@@ -72,4 +72,10 @@ intptr_t dict_get(struct dict * self, intptr_t key) {
   else return ((intptr_t *)self->vals)[i];
 }
 
+intptr_t dict_get_by_index(struct dict * self, size_t i) {
+  if(i >= self->size) return NULL;
+  if(self->memcpy_size) return self->vals + self->memcpy_size * i;
+  else return ((intptr_t *)self->vals)[i];
+}
+
 // TODO zap

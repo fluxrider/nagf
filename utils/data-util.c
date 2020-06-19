@@ -63,14 +63,13 @@ void dict_set(struct dict * self, intptr_t key, intptr_t val) {
   }
 }
 
-void * dict_get(struct dict * self, intptr_t key) {
+intptr_t dict_get(struct dict * self, intptr_t key) {
   size_t i = _find(self, key);
   // not found
   if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) return NULL;
   // found
   if(self->memcpy_size) return self->vals + self->memcpy_size * i;
-  else return &((intptr_t *)self->vals)[i];
-  // returns a pointer to the value stored
+  else return ((intptr_t *)self->vals)[i];
 }
 
 // TODO zap

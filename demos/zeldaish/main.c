@@ -297,8 +297,8 @@ void main(int argc, char * argv[]) {
                   warp.w = strtod(w, NULL);
                   warp.y = strtod(y, NULL);
                   warp.h = strtod(h, NULL);
-                  struct map_node ** m = dict_get(&warps, name);
-                  if(m) warp_map = *m; else { printf("invalid warp name %s\n", name); exit(EXIT_FAILURE); }
+                  warp_map = dict_get(&warps, name);
+                  if(!warp_map) { printf("invalid warp name %s\n", name); exit(EXIT_FAILURE); }
                   xmlFree(name);
                   xmlFree(h);
                   xmlFree(w);
@@ -310,7 +310,6 @@ void main(int argc, char * argv[]) {
                   xmlChar * y = xmlGetProp(node, "y");
                   xmlChar * name = xmlGetProp(node, "name");
                   item_id = dict_get(&items, name);
-                  if(item_id) item_id = *(char **)item_id;
                   item.x = strtod(x, NULL) - TS/2;
                   item.y = strtod(y, NULL) - TS/2;
                   item.w = TS;
@@ -413,7 +412,7 @@ void main(int argc, char * argv[]) {
               int row = (int)(y / TS);
               for(int k = 0; !blocked_x && k < layers_size; k++) {
                 int tile = layers[k][row][col] - 1;
-                blocked_x |= dict_get(&blocking_tiles, tile) != NULL;
+                blocked_x |= dict_get(&blocking_tiles, tile);
               }
             }
           }
@@ -432,7 +431,7 @@ void main(int argc, char * argv[]) {
               int row = (int)(y / TS);
               for(int k = 0; !blocked_y && k < layers_size; k++) {
                 int tile = layers[k][row][col] - 1;
-                blocked_y |= dict_get(&blocking_tiles, tile) != NULL;
+                blocked_y |= dict_get(&blocking_tiles, tile);
               }
             }
           }
@@ -449,7 +448,7 @@ void main(int argc, char * argv[]) {
           message = NULL;
         } else if(npc_id && collides_2D(&forward, &npc)) {
           printf("npc %s\n", npc_id);
-          message = dict_get(&npcs, npc_id); if(message) message = *(char **)message;
+          message = dict_get(&npcs, npc_id);
           if(message) printf("%s\n", message);
         }
       }

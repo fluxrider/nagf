@@ -22,4 +22,4 @@ struct dict {
 void dict_init(struct dict * self, size_t memcpy_size, bool key_str, bool dup_str);
 void dict_free(struct dict * self);
 void dict_set(struct dict * self, intptr_t key, intptr_t val);
-void * dict_get(struct dict * self, intptr_t key);
+intptr_t dict_get(struct dict * self, intptr_t key);

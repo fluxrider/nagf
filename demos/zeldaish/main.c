@@ -112,6 +112,7 @@ void main(int argc, char * argv[]) {
   struct dict signs;
   dict_init(&signs, 0, true, false);
   dict_set(&signs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
+  const char * message = NULL;
 
   // states
   double px = 0;
@@ -429,14 +430,16 @@ void main(int argc, char * argv[]) {
         if(!blocked_x) px = nx;
         if(!blocked_y) py = ny;
       }
-      // activate whatever is forward
+      // action button (activate stuff forward, dismiss message box)
       if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH)) {
         if(item_id && collides_2D(&forward, &item)) {
           printf("item activated\n");
         }
-        if(signpost_id && collides_2D(&forward, &signpost)) {
+        if(message) {
+          message = NULL;
+        } else if(signpost_id && collides_2D(&forward, &signpost)) {
           printf("signpost %s\n", signpost_id);
-          const char * message = dict_get(&signs, signpost_id); if(message) message = *(char **)message;
+          message = dict_get(&signs, signpost_id); if(message) message = *(char **)message;
           printf("%s\n", message);
         }
       }
@@ -475,9 +478,18 @@ void main(int argc, char * argv[]) {
       // draw player
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
 
-      // tmp
-      //dprintf(gfx, "text DejaVuSans-Bold.ttf 10 10 200 32 right 2 noclip 0 ffffff 000000 1 Hello there.\\nBoyo wants to see you.\n");
-      //dprintf(gfx, "text DejaVuSans-Bold.ttf tight 10 100 200 32 left 2 noclip 0 ffffff 000000 1 ABC\\n123\n");
+      // message box
+      if(message) {
+        double w = W * .8;
+        double h = (H - HUD_H) * .5;
+        int n = h / 10;
+        double x = (W - w) / 2;
+        double y = (H - HUD_H - h) / 2 + HUD_H;
+        dprintf(gfx, "fill 88888888 %f %f %f %f\n", x, y, w, h);
+        dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
+      }
+
+      // fps
       dprintf(gfx, "text DejaVuSans-Bold.ttf 1 0 255 16 left 2 noclip 0 ffffff 00ff00 0 ms:%d\\nfps:%2.1f\n", (int)(delta_time * 1000), 1 / (double)delta_time);
     }
     // flush

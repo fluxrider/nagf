@@ -389,7 +389,7 @@ class gfx_swing {
                   double tx = x - box.getX() + outline_size;
                   if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
                   else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
-                  Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent)); // TODO something is off when box.h is lower than line_height
+                  Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent));
                   g.setColor(fill);
                   g.fill(shape);
                   if(outline_size > 0) {

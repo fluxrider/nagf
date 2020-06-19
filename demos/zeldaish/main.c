@@ -495,11 +495,11 @@ void main(int argc, char * argv[]) {
         double x = (W - w) / 2;
         double y = (H - HUD_H - h) / 2 + HUD_H;
         dprintf(gfx, "fill 88888888 %f %f %f %f\n", x, y, w, h);
-        dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
+        dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
       }
 
       // fps
-      dprintf(gfx, "text DejaVuSans-Bold.ttf 1 0 255 16 left 2 noclip 0 ffffff 00ff00 0 ms:%d\\nfps:%2.1f\n", (int)(delta_time * 1000), 1 / (double)delta_time);
+      dprintf(gfx, "text DejaVuSans-Bold.ttf 1 0 255 16 top left 2 noclip 0 ffffff 00ff00 0 ms:%d\\nfps:%2.1f\n", (int)(delta_time * 1000), 1 / (double)delta_time);
     }
     // flush
     dprintf(gfx, "flush\n");

@@ -306,7 +306,7 @@ class gfx_swing {
                 }
               }
             } else if(command.startsWith("text ")) {
-              // text font x y w h halign line_count clip scroll outline_color fill_color message
+              // text font x y w h valign halign line_count clip scroll outline_color fill_color message
               String [] parts = command.split(" ");
               int i = 1;
               String path = parts[i++];
@@ -316,6 +316,7 @@ class gfx_swing {
               double y = Double.parseDouble(parts[i++]);
               double w = Double.parseDouble(parts[i++]);
               double h = Double.parseDouble(parts[i++]);
+              String valign = parts[i++];
               String halign = parts[i++];
               int line_count = Integer.parseInt(parts[i++]);
               double line_height = h / line_count;
@@ -373,14 +374,16 @@ class gfx_swing {
                 }
 
                 // render with outline
-                double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
-                y += scroll;
-                y += outline_size;
                 Shape clip = null;
                 if(do_clip) {
                   clip = g.getClip();
                   g.clipRect((int)x,(int)y,(int)w,(int)h);
                 }
+                double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
+                y += scroll;
+                y += outline_size;
+                if(valign.equals("bottom")) y += h - glyphs.size() * line_height;
+                else if(valign.equals("center")) y += (h - glyphs.size() * line_height) / 2;
                 for(GlyphVector gv : glyphs) {
                   Rectangle2D box = gv.getVisualBounds();
                   double tx = x - box.getX() + outline_size;

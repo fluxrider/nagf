@@ -109,6 +109,9 @@ void main(int argc, char * argv[]) {
   const char * item_id = NULL;
   struct rect signpost;
   char * signpost_id = NULL;
+  struct dict signs;
+  dict_init(&signs, 0, true, false);
+  dict_set(&signs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
 
   // states
   double px = 0;
@@ -159,7 +162,8 @@ void main(int argc, char * argv[]) {
   const int walking_period = 300;
   struct rect collision = {1, 14, 12, 8}; // hard-coded princess collision box
   while(running) {
-    // parse map created with Tiled (https://www.mapeditor.org/) [with assumptions on tile size, single tileset across all maps, single warp rect)
+    // parse map created with Tiled (https://www.mapeditor.org/)
+    // [with assumptions on tile size, single tileset across all maps, single warp rect, single signpost)
     if(next_map) {
       layers_size = 0;
       warp_map = NULL;
@@ -432,6 +436,8 @@ void main(int argc, char * argv[]) {
         }
         if(signpost_id && collides_2D(&forward, &signpost)) {
           printf("signpost %s\n", signpost_id);
+          const char * message = dict_get(&signs, signpost_id); if(message) message = *(char **)message;
+          printf("%s\n", message);
         }
       }
 

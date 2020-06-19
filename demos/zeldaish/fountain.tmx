@@ -35,6 +35,6 @@
   <object id="1" name="start" type="spawn" x="120" y="89.9167">
    <point/>
   </object>
-  <object id="2" name="garden" type="signpost" x="158.727" y="62.1818" width="18.5455" height="17.4545"/>
+  <object id="2" name="garden" type="npc" x="158.727" y="62.1818" width="18.5455" height="17.4545"/>
  </objectgroup>
 </map>

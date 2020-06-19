@@ -107,11 +107,11 @@ void main(int argc, char * argv[]) {
   struct map_node * warp_map;
   struct rect item;
   const char * item_id = NULL;
-  struct rect signpost;
-  char * signpost_id = NULL;
-  struct dict signs;
-  dict_init(&signs, 0, true, false);
-  dict_set(&signs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
+  struct rect npc;
+  char * npc_id = NULL;
+  struct dict npcs;
+  dict_init(&npcs, 0, true, false);
+  dict_set(&npcs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
   const char * message = NULL;
 
   // states
@@ -164,13 +164,13 @@ void main(int argc, char * argv[]) {
   struct rect collision = {1, 14, 12, 8}; // hard-coded princess collision box
   while(running) {
     // parse map created with Tiled (https://www.mapeditor.org/)
-    // [with assumptions on tile size, single tileset across all maps, single warp rect, single signpost)
+    // [with assumptions on tile size, single tileset across all maps, single warp rect, single npc)
     if(next_map) {
       layers_size = 0;
       warp_map = NULL;
       item_id = NULL;
-      if(signpost_id) free(signpost_id);
-      signpost_id = NULL;
+      if(npc_id) free(npc_id);
+      npc_id = NULL;
       xmlDoc * doc = xmlParseFile(next_map->filename); if(!doc) { printf("xmlParseFile(%s) failed.\n", next_map->filename); exit(EXIT_FAILURE); }
       xmlNode * mcur = xmlDocGetRootElement(doc); if(!mcur) { printf("xmlDocGetRootElement() is null.\n"); exit(EXIT_FAILURE); }
       mcur = mcur->xmlChildrenNode;
@@ -318,17 +318,27 @@ void main(int argc, char * argv[]) {
                   xmlFree(name);
                   xmlFree(y);
                   xmlFree(x);
-                } else if(xmlStrcmp(type, "signpost") == 0) {
+                } else if(xmlStrcmp(type, "npc") == 0) {
                   xmlChar * x = xmlGetProp(node, "x");
                   xmlChar * y = xmlGetProp(node, "y");
                   xmlChar * w = xmlGetProp(node, "width");
                   xmlChar * h = xmlGetProp(node, "height");
                   xmlChar * name = xmlGetProp(node, "name");
-                  signpost.x = strtod(x, NULL);
-                  signpost.w = strtod(w, NULL);
-                  signpost.y = strtod(y, NULL);
-                  signpost.h = strtod(h, NULL);
-                  signpost_id = strdup(name);
+                  npc.x = strtod(x, NULL);
+                  if(w) {
+                    npc.w = strtod(w, NULL);
+                  } else {
+                    npc.w = TS;
+                    npc.x -= TS / 2;
+                  }
+                  npc.y = strtod(y, NULL);
+                  if(h) {
+                    npc.h = strtod(h, NULL);
+                  } else {
+                    npc.h = TS;
+                    npc.y -= TS / 2;
+                  }
+                  npc_id = strdup(name);
                   xmlFree(name);
                   xmlFree(h);
                   xmlFree(w);
@@ -437,10 +447,10 @@ void main(int argc, char * argv[]) {
         }
         if(message) {
           message = NULL;
-        } else if(signpost_id && collides_2D(&forward, &signpost)) {
-          printf("signpost %s\n", signpost_id);
-          message = dict_get(&signs, signpost_id); if(message) message = *(char **)message;
-          printf("%s\n", message);
+        } else if(npc_id && collides_2D(&forward, &npc)) {
+          printf("npc %s\n", npc_id);
+          message = dict_get(&npcs, npc_id); if(message) message = *(char **)message;
+          if(message) printf("%s\n", message);
         }
       }
 
@@ -513,7 +523,7 @@ void main(int argc, char * argv[]) {
   }
 
   // disconnect
-  if(signpost_id) free(signpost_id);
+  if(npc_id) free(npc_id);
   dict_free(&blocking_tiles);
   dict_free(&animated_tiles);
   xmlFree(tileset_image);

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.2" tiledversion="1.3.5" orientation="orthogonal" renderorder="right-down" width="16" height="11" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="6">
+<map version="1.2" tiledversion="1.3.5" orientation="orthogonal" renderorder="right-down" width="16" height="11" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="8">
  <tileset firstgid="1" source="overworld.tsx"/>
  <layer id="1" name="floor" width="16" height="11">
   <data encoding="csv">
@@ -32,11 +32,11 @@
 </data>
  </layer>
  <objectgroup id="3" name="objects">
-  <object id="2" name="wizard" type="npc" x="86" y="86.6667">
-   <point/>
-  </object>
   <object id="4" name="cave" type="warp" x="142.606" y="70" width="18.7717" height="22.5253"/>
   <object id="5" name="warp" type="spawn" x="152" y="104.667">
+   <point/>
+  </object>
+  <object id="7" name="wizard" type="npc" x="88" y="79">
    <point/>
   </object>
  </objectgroup>

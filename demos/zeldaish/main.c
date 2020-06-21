@@ -55,6 +55,8 @@ bool collides_2D_dx(double px, double py, double pw, double ph, struct rect * q)
 }
 
 void main(int argc, char * argv[]) {
+  char tmp_buff[256];
+
   // connect
   const char * error;
   struct srr evt;
@@ -118,8 +120,9 @@ void main(int argc, char * argv[]) {
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
   dict_set(&npc_res, "dragon", "dragon.CC0.crawl-tiles.png");
   dict_set(&npc_res, "wizard", "human.CC0.crawl-tiles.png");
-  dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 0; i < npc_res.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&npc_res, i));
+  dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
+  for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
 
   // states
   double px = 0;
@@ -398,8 +401,10 @@ void main(int argc, char * argv[]) {
         // simply test the corners, and assume speed is low so I don't need collision response
         bool blocked_x = false;
         bool break_x = false;
+        bool test_npc = npc_id && dict_get(&npc_res, npc_id);
         if(warp_map && collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &warp)) { break_x = true; next_map = warp_map; warping = true; }
         if(!break_x && item_id) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &item);
+        if(test_npc && !break_x && !blocked_x) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &npc);
         for(int i = 0, x = nx + collision.x; !break_x && !blocked_x && i < 2; i++, x += collision.w) {
           for(int j = 0, y = py + collision.y; !break_x && !blocked_x && j < 2; j++, y += collision.h) {
             if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
@@ -419,6 +424,7 @@ void main(int argc, char * argv[]) {
         bool break_y = false;
         if(warp_map && collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &warp)) { break_y = true; next_map = warp_map; warping = true; }
         if(!break_y && item_id) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &item);
+        if(test_npc && !break_y && !blocked_y) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &npc);
         for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
           for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
             if(y < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
@@ -481,6 +487,25 @@ void main(int argc, char * argv[]) {
       // draw item
       if(item_id) {
         dprintf(gfx, "draw %s %f %f\n", item_id, item.x, item.y + HUD_H);
+      }
+      // draw npc
+      if(npc_id) {
+        const char * res = dict_get(&npc_res, npc_id);
+        if(res) {
+          // case flame animation
+          if(strcmp(npc_id, "flame") == 0) {
+            uint64_t flame_period = 400;
+            snprintf(tmp_buff, 256, res, (int)((tick % flame_period) / (double)flame_period * 8 + 1));
+            res = tmp_buff;
+          }
+          double w = npc.w;
+          double h = npc.h;
+          // case dragon dimensions are his patrol region, not draw size
+          if(strcmp(npc_id, "dragon") == 0) {
+            w = h = TS;
+          }
+          dprintf(gfx, "draw %s %f %f %f %f\n", res, npc.x, npc.y + HUD_H, w, h);
+        }
       }
       // draw player
       dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");

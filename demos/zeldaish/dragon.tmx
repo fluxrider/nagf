@@ -32,7 +32,7 @@
 </data>
  </layer>
  <objectgroup id="3" name="objects">
-  <object id="2" name="dragon" type="npc" x="81" y="67" width="76.6667" height="10"/>
+  <object id="2" name="dragon" type="npc" x="51" y="67" width="106.667" height="10"/>
   <object id="3" name="heart" type="item" x="120" y="23.6667">
    <point/>
   </object>

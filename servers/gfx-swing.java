@@ -283,27 +283,50 @@ class gfx_swing {
               String [] parts = command.split(" ");
               int i = 1;
               String path = parts[i++];
-              if(parts.length == 4) {
-                int x = (int)Double.parseDouble(parts[i++]);
-                int y = (int)Double.parseDouble(parts[i++]);
-                synchronized(backbuffer_mutex) {
-                  g.drawImage((BufferedImage)cache.get(path), x, y, null);
-                }
-              } else {
-                int sx = (int)Double.parseDouble(parts[i++]);
-                int sy = (int)Double.parseDouble(parts[i++]);
-                int w = (int)Double.parseDouble(parts[i++]);
-                int h = (int)Double.parseDouble(parts[i++]);
-                int x = (int)Double.parseDouble(parts[i++]);
-                int y = (int)Double.parseDouble(parts[i++]);
-                boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
-                synchronized(backbuffer_mutex) {
-                  if(mirror_x) {
-                    g.drawImage((BufferedImage)cache.get(path), x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
-                  } else {
-                    g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+              switch(parts.length) {
+                // normal: draw path x y
+                case 4:
+                {
+                  int x = (int)Double.parseDouble(parts[i++]);
+                  int y = (int)Double.parseDouble(parts[i++]);
+                  synchronized(backbuffer_mutex) {
+                    g.drawImage((BufferedImage)cache.get(path), x, y, null);
                   }
                 }
+                break;
+                // scaled: draw path x y w h
+                case 6:
+                {
+                  int x = (int)Double.parseDouble(parts[i++]);
+                  int y = (int)Double.parseDouble(parts[i++]);
+                  int w = (int)Double.parseDouble(parts[i++]);
+                  int h = (int)Double.parseDouble(parts[i++]);
+                  synchronized(backbuffer_mutex) {
+                    g.drawImage((BufferedImage)cache.get(path), x, y, w, h, null);
+                  }
+                }
+                break;
+                // region: draw path sx sy w h x y (mx=mirror-x)
+                case 8:
+                case 9:
+                {
+                  int sx = (int)Double.parseDouble(parts[i++]);
+                  int sy = (int)Double.parseDouble(parts[i++]);
+                  int w = (int)Double.parseDouble(parts[i++]);
+                  int h = (int)Double.parseDouble(parts[i++]);
+                  int x = (int)Double.parseDouble(parts[i++]);
+                  int y = (int)Double.parseDouble(parts[i++]);
+                  boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
+                  synchronized(backbuffer_mutex) {
+                    if(mirror_x) {
+                      g.drawImage((BufferedImage)cache.get(path), x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
+                    } else {
+                      g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+                    }
+                  }
+                }
+                break;
+                default:
               }
             } else if(command.startsWith("text ")) {
               // text font x y w h valign halign line_count clip scroll outline_color fill_color message

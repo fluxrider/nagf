@@ -129,6 +129,8 @@ void main(int argc, char * argv[]) {
   for(int i = 0; i < npc_res.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&npc_res, i));
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
+  struct dict item_ignore;
+  dict_init(&item_ignore, 0, true, false);
 
   // states
   double px = 0;
@@ -136,6 +138,7 @@ void main(int argc, char * argv[]) {
   struct rect forward;
   forward.w = TS;
   forward.h = TS;
+  const char * held_item = NULL;
 
   // game setup
   int W = 256;
@@ -317,6 +320,7 @@ void main(int argc, char * argv[]) {
                   xmlChar * y = xmlGetProp(node, "y");
                   xmlChar * name = xmlGetProp(node, "name");
                   item_id = dict_get(&items, name);
+                  if(dict_has(&item_ignore, item_id)) item_id = NULL;
                   item.x = strtod(x, NULL) - TS/2;
                   item.y = strtod(y, NULL) - TS/2;
                   item.w = TS;
@@ -451,12 +455,18 @@ void main(int argc, char * argv[]) {
       }
       // action button (activate stuff forward, dismiss message box)
       if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH)) {
-        if(item_id && collides_2D(&forward, &item)) {
-          printf("item activated\n");
-        }
+        // dismiss dialog
         if(message) {
           message = NULL;
-        } else if(npc_id && collides_2D(&forward, &npc)) {
+        }
+        // pickup items
+        else if(item_id && collides_2D(&forward, &item)) {
+          held_item = item_id;
+          item_id = NULL;
+          dict_set(&item_ignore, held_item, true);
+        }
+        // npc interaction
+        else if(npc_id && collides_2D(&forward, &npc)) {
           printf("npc %s\n", npc_id);
           message = dict_get(&npcs, npc_id);
           if(message) printf("%s\n", message);
@@ -504,6 +514,9 @@ void main(int argc, char * argv[]) {
       if(item_id) {
         dprintf(gfx, "draw %s %f %f\n", item_id, item.x, item.y + HUD_H);
       }
+      if(held_item) {
+        dprintf(gfx, "draw %s %f %f\n", held_item, (W - TS) / 2.0, HUD_H / 2.0 - TS);
+      }
       // draw npc
       if(npc_id) {
         const char * res = dict_get(&npc_res, npc_id);
@@ -520,9 +533,9 @@ void main(int argc, char * argv[]) {
           double y = npc.y;
           // case dragon dimensions are his patrol region, not draw size, and neither is drawn position
           if(strcmp(npc_id, "dragon") == 0) {
-            w = h = TS;
-            x = fmin(fmax(npc.x, px), npc.x + npc.w - TS);
-            y = npc.y + npc.h - TS;
+            w = h = 2 * TS;
+            x = fmin(fmax(npc.x, px), npc.x + npc.w - w);
+            y = npc.y + npc.h - h;
           }
           dprintf(gfx, "draw %s %f %f %f %f\n", res, x, y + HUD_H, w, h);
         }

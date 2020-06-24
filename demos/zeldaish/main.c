@@ -516,11 +516,15 @@ void main(int argc, char * argv[]) {
           }
           double w = npc.w;
           double h = npc.h;
-          // case dragon dimensions are his patrol region, not draw size
+          double x = npc.x;
+          double y = npc.y;
+          // case dragon dimensions are his patrol region, not draw size, and neither is drawn position
           if(strcmp(npc_id, "dragon") == 0) {
             w = h = TS;
+            x = fmin(fmax(npc.x, px), npc.x + npc.w - TS);
+            y = npc.y + npc.h - TS;
           }
-          dprintf(gfx, "draw %s %f %f %f %f\n", res, npc.x, npc.y + HUD_H, w, h);
+          dprintf(gfx, "draw %s %f %f %f %f\n", res, x, y + HUD_H, w, h);
         }
       }
       // draw player

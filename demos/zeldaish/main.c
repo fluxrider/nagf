@@ -114,7 +114,13 @@ void main(int argc, char * argv[]) {
   struct dict npcs;
   dict_init(&npcs, 0, true, false);
   dict_set(&npcs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
+  dict_set(&npcs, "elf", "I'm hungry. I want candy.");
+  dict_set(&npcs, "wizard", "I cannot find my magic staff. Will you help?");
   const char * message = NULL;
+  struct dict npc_state;
+  dict_init(&npc_state, 0, true, false);
+  dict_set(&npc_state, "elf", 0);
+  dict_set(&npc_state, "wizard", 0);
   struct dict npc_res;
   dict_init(&npc_res, 0, true, false);
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
@@ -454,6 +460,16 @@ void main(int argc, char * argv[]) {
           printf("npc %s\n", npc_id);
           message = dict_get(&npcs, npc_id);
           if(message) printf("%s\n", message);
+          if(dict_has(&npc_state, npc_id)) {
+            int state = dict_get(&npc_state, npc_id);
+            if(strcmp(npc_id, "elf") == 0) {
+              if(state == 0) {
+                dict_set(&npcs, "elf", "I'm hungry. I want candy!!!");
+                dict_set(&npc_state, npc_id, 1);
+              }
+            } else if(strcmp(npc_id, "wizard") == 0) {
+            }
+          }
         }
       }
 
@@ -513,7 +529,7 @@ void main(int argc, char * argv[]) {
       // message box
       if(message) {
         double w = W * .8;
-        double h = (H - HUD_H) * .5;
+        double h = (H - HUD_H) * .3;
         int n = h / 10;
         double x = (W - w) / 2;
         double y = (H - HUD_H - h) / 2 + HUD_H;

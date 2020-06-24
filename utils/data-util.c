@@ -21,6 +21,7 @@ void dict_init(struct dict * self, size_t memcpy_size, bool key_str, bool dup_st
   self->size = 0;
   self->keys = reallocarray(NULL, self->capacity, sizeof(intptr_t));
   self->vals = reallocarray(NULL, self->capacity, self->memcpy_size? self->memcpy_size : sizeof(intptr_t));
+  self->has_cache = -1;
 }
 
 void dict_free(struct dict * self) {
@@ -64,10 +65,19 @@ void dict_set(struct dict * self, intptr_t key, intptr_t val) {
 }
 
 intptr_t dict_get(struct dict * self, intptr_t key) {
-  size_t i = _find(self, key);
-  // not found
-  if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) return NULL;
+  size_t i = -1;
+  // check cache
+  if(self->has_cache != -1) {
+    i = self->has_cache;
+    if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) i = -1;
+  }
+  // search for it
+  if(i == -1) {
+    i = _find(self, key);
+    if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) return NULL;
+  }
   // found
+  self->has_cache = -1;
   if(self->memcpy_size) return self->vals + self->memcpy_size * i;
   else return ((intptr_t *)self->vals)[i];
 }
@@ -76,6 +86,12 @@ intptr_t dict_get_by_index(struct dict * self, size_t i) {
   if(i >= self->size) return NULL;
   if(self->memcpy_size) return self->vals + self->memcpy_size * i;
   else return ((intptr_t *)self->vals)[i];
+}
+
+bool dict_has(struct dict * self, intptr_t key) {
+  size_t i = _find(self, key);
+  self->has_cache = i;
+  return i < self->size;
 }
 
 // TODO zap

@@ -117,7 +117,7 @@ def handle_fifo_loop():
             parts = line.split()
             bg.set_property('volume', combine_volume(float(parts[-2]), float(parts[-1])))
           # cmd: channel stream <index> <path>
-          if line.startswith('channel stream '):
+          elif line.startswith('channel stream '):
             parts = line.split()
             index = int(parts[-2])
             channels[index].set_state(Gst.State.NULL)

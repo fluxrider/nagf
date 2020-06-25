@@ -96,24 +96,7 @@ void main(int argc, char * argv[]) {
   dict_init(&animated_tiles, sizeof(struct tile_animation), false, false);
   dict_init(&blocking_tiles, 0, false, false);
 
-  // map
-  const int TS = 16;
-  const int MAP_COL = 16;
-  const int MAP_ROW = 11;
-  const int HUD_H = 3 * TS;
-  const int LAYERS_CAPACITY = 2;
-  int layers[LAYERS_CAPACITY][MAP_ROW][MAP_COL];
-  int layers_size;
-  bool warping = false;
-  struct rect warp;
-  struct map_node * warp_map;
-  struct rect item;
-  const char * item_id = NULL;
-  struct rect npc;
-  char * npc_id = NULL;
-  const char * message = NULL;
-  struct dict npc_state;
-  dict_init(&npc_state, 0, true, false);
+  // images
   struct dict npc_res;
   dict_init(&npc_res, 0, true, false);
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
@@ -125,8 +108,21 @@ void main(int argc, char * argv[]) {
   dprintf(gfx, "cache chest_2_open.CC0.crawl-tiles.png\n");
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
-  struct dict ignore;
-  dict_init(&ignore, 0, true, false);
+
+  // map
+  const int TS = 16;
+  const int MAP_COL = 16;
+  const int MAP_ROW = 11;
+  const int LAYERS_CAPACITY = 2;
+  int layers[LAYERS_CAPACITY][MAP_ROW][MAP_COL];
+  int layers_size;
+  bool warping = false;
+  struct rect warp;
+  struct map_node * warp_map;
+  struct rect item;
+  const char * item_id = NULL;
+  struct rect npc;
+  char * npc_id = NULL;
 
   // states
   double px = 0;
@@ -136,11 +132,16 @@ void main(int argc, char * argv[]) {
   forward.h = TS;
   const char * held_item = NULL;
   uint64_t kaboom_t0 = -1;
+  const char * message = NULL;
+  struct dict npc_state;
+  dict_init(&npc_state, 0, true, false);
+  struct dict ignore;
+  dict_init(&ignore, 0, true, false);
 
   // game setup
   int W = 256;
   int H = 224;
-  //dprintf(snd, "stream bg.ogg\n");
+  dprintf(snd, "stream bg.ogg\n");
   dprintf(gfx, "title %s\n", argv[0]);
   dprintf(gfx, "hq\n");
   dprintf(gfx, "window %d %d\n", W, H);
@@ -472,6 +473,7 @@ void main(int argc, char * argv[]) {
         if(message) {
           message = NULL;
           dprintf(snd, "channel stop 0\n");
+          dprintf(snd, "volume 1 1\n");
         }
         // pickup items
         else if(item_id && collides_2D(&forward, &item)) {
@@ -487,34 +489,41 @@ void main(int argc, char * argv[]) {
           if(strcmp(npc_id, "elf") == 0) {
             if(state == 0) {
               message = "I'm hungry. I want candy.";
+              dprintf(snd, "channel stream 0 elf_0.ogg\n");
               dict_set(&npc_state, "elf", 1);
             } else {
               if(held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
                 message = "A candy cane! Thank you so much. You may pass.";
+                dprintf(snd, "channel stream 0 elf_2.ogg\n");
                 held_item = NULL;
                 dict_set(&ignore, "elf", true); free(npc_id); npc_id = NULL;
                 dict_set(&npc_state, "elf", 2);
               } else {
                 message = "I'm so hungry. I really want candy!";
+                dprintf(snd, "channel stream 0 elf_1.ogg\n");
               }
             }
           } else if(strcmp(npc_id, "bottle") == 0) {
             if(state == 0) {
               if(held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
                 message = "You open the chest with the key, and find an empty bottle.";
+                dprintf(snd, "channel stream 0 open.ogg\n");
                 held_item = dict_get(&items, npc_id);
                 dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
                 dict_set(&npc_state, "bottle", 1);
               } else {
                 message = "The chest is locked.";
+                dprintf(snd, "channel stream 0 locked.ogg\n");
               }
             } else if(state == 1) {
               message = "The chest is empty.";
+              dprintf(snd, "channel stream 0 empty.ogg\n");
             }
           } else if(strcmp(npc_id, "flame") == 0) {
             if(state == 0) {
               if(held_item && strcmp(held_item, dict_get(&items, "water")) == 0) {
                 message = "You douse the flame with your water bottle, and find a magic staff.";
+                dprintf(snd, "channel stream 0 flame.ogg\n");
                 held_item = dict_get(&items, "staff");
                 dict_set(&ignore, "flame", true); free(npc_id); npc_id = NULL;
                 dict_set(&npc_state, "flame", 1);
@@ -523,19 +532,22 @@ void main(int argc, char * argv[]) {
           } else if(strcmp(npc_id, "wizard") == 0) {
             if(state == 1 && held_item && strcmp(held_item, dict_get(&items, "staff")) == 0) {
               message = "You found my staff. Thank you. Let me teach you the magic spell 'Kaboom'.";
+              dprintf(snd, "channel stream 0 wiz_1.ogg\n");
               dict_set(&npc_state, "wizard", 2);
               held_item = dict_get(&items, "spell");
             } else {
               if(state == 2) {
                 message = "Thank you for returning my staff.";
+                dprintf(snd, "channel stream 0 wiz_2.ogg\n");
               } else {
                 message = "I cannot find my magic staff. Will you help?";
+                dprintf(snd, "channel stream 0 wiz_0.ogg\n");
                 if(state == 0) dict_set(&npc_state, "wizard", 1);
               }
             }
           } else if(strcmp(npc_id, "garden") == 0) {
-            message = "This garden belongs to princess purple dress. No trespassing please.";
-            dprintf(snd, "channel stream 0 bg.ogg\n");
+            message = "This is princess Purple Dress's garden, and don't go pass it or eat the carrots please.";
+            dprintf(snd, "channel stream 0 garden.ogg\n");
           } else if(strcmp(npc_id, "dragon") == 0) {
             if(held_item && strcmp(held_item, dict_get(&items, "spell")) == 0) {
               dict_set(&ignore, "dragon", true); free(npc_id);
@@ -544,9 +556,11 @@ void main(int argc, char * argv[]) {
             }
           }
         }
+        if(message) dprintf(snd, "volume .3 1\n");
       }
 
       // hud
+      const int HUD_H = 3 * TS;
       dprintf(gfx, "fill 000000 0 0 %d %d\n", W, HUD_H);
       // draw tilemap
       for(int i = 0; i < layers_size; i++) {

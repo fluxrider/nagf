@@ -69,7 +69,7 @@ intptr_t dict_get(struct dict * self, intptr_t key) {
   // check cache
   if(self->has_cache != -1) {
     i = self->has_cache;
-    if(i == self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) i = -1;
+    if(i >= self->size || (self->key_str? strcmp(self->keys[i], key) != 0 : self->keys[i] != key)) i = -1;
   }
   // search for it
   if(i == -1) {

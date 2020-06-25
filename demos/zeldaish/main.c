@@ -119,7 +119,7 @@ void main(int argc, char * argv[]) {
   dict_set(&npcs, "bottle", "The chest is locked.");
   const char * message = NULL;
   struct dict npc_state;
-  dict_init(&npc_state, 0, true, false);
+  dict_init(&npc_state, 0, true, true);
   struct dict npc_res;
   dict_init(&npc_res, 0, true, false);
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
@@ -158,6 +158,7 @@ void main(int argc, char * argv[]) {
   dict_set(&items, "water", "water.resized.CC0.7soul1.png");
   dict_set(&items, "heart", "heart.resized.CC0.7soul1.png");
   dict_set(&items, "staff", "staff02.CC0.crawl-tiles.png");
+  dict_set(&items, "spell", "scroll-thunder.CC0.pixel-boy.png");
   for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
 
   // game loop
@@ -512,6 +513,12 @@ void main(int argc, char * argv[]) {
               dict_set(&npc_state, npc_id, 1);
               held_item = dict_get(&items, "staff");
             }
+          } else if(strcmp(npc_id, "wizard") == 0) {
+            if(state == 1 && held_item && strcmp(held_item, dict_get(&items, "staff")) == 0) {
+              dict_set(&npcs, npc_id, "You found my staff. Thank you. Let me teach you the magic spell 'Kaboom'.");
+              dict_set(&npc_state, npc_id, 2);
+              held_item = dict_get(&items, "spell");
+            }
           }
 
           // mid
@@ -537,6 +544,13 @@ void main(int argc, char * argv[]) {
             if(state == 1) {
               dict_set(&ignore, "flame", true);
               free(npc_id); npc_id = NULL;
+            }
+          } else if(strcmp(npc_id, "wizard") == 0) {
+            if(state == 0) {
+              printf("moving to state 1\n");
+              dict_set(&npc_state, npc_id, 1);
+            } else if(state == 2) {
+              dict_set(&npcs, npc_id, "Thank you for returning my staff.");
             }
           }
         }

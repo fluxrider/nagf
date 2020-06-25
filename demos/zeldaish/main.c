@@ -126,6 +126,7 @@ void main(int argc, char * argv[]) {
   dict_set(&npc_res, "dragon", "dragon.CC0.crawl-tiles.png");
   dict_set(&npc_res, "wizard", "human.CC0.crawl-tiles.png");
   dict_set(&npc_res, "bottle", "chest_2_closed.CC0.crawl-tiles.png");
+  dict_set(&npc_res, "kaboom", "8.CC0.pixel-boy.png");
   for(int i = 0; i < npc_res.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&npc_res, i));
   dprintf(gfx, "cache chest_2_open.CC0.crawl-tiles.png\n");
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
@@ -140,6 +141,7 @@ void main(int argc, char * argv[]) {
   forward.w = TS;
   forward.h = TS;
   const char * held_item = NULL;
+  uint64_t kaboom_t0 = -1;
 
   // game setup
   int W = 256;
@@ -552,6 +554,12 @@ void main(int argc, char * argv[]) {
             } else if(state == 2) {
               dict_set(&npcs, npc_id, "Thank you for returning my staff.");
             }
+          } else if(strcmp(npc_id, "dragon") == 0) {
+            if(held_item && strcmp(held_item, dict_get(&items, "spell")) == 0) {
+              dict_set(&ignore, "dragon", true);
+              free(npc_id);
+              npc_id = strdup("kaboom");
+            }
           }
         }
       }
@@ -605,12 +613,26 @@ void main(int argc, char * argv[]) {
           double x = npc.x;
           double y = npc.y;
           // case dragon dimensions are his patrol region, not draw size, and neither is drawn position
-          if(strcmp(npc_id, "dragon") == 0) {
+          if(strcmp(npc_id, "dragon") == 0 || strcmp(npc_id, "kaboom") == 0) {
             w = h = 2 * TS;
             x = fmin(fmax(npc.x, px), npc.x + npc.w - w);
             y = npc.y + npc.h - h;
           }
-          dprintf(gfx, "draw %s %f %f %f %f\n", res, x, y + HUD_H, w, h);
+          if(strcmp(npc_id, "kaboom") == 0) {
+            if(kaboom_t0 == -1) {
+              kaboom_t0 = tick;
+            }
+            uint64_t kaboom_duration = 1000;
+            if(tick >= kaboom_t0 + kaboom_duration) {
+              free(npc_id); npc_id = NULL;
+            } else {
+              double sx = (int)((tick - kaboom_t0) / (double)kaboom_duration * 5) * 16;
+              double sy = 0;
+              dprintf(gfx, "draw %s %f %f %f %f %f %f %f %f\n", res, sx, sy, 16.0, 16.0, x, y + HUD_H, w, h);
+            }
+          } else {
+            dprintf(gfx, "draw %s %f %f %f %f\n", res, x, y + HUD_H, w, h);
+          }
         }
       }
       // draw player

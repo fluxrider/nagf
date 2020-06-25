@@ -326,6 +326,22 @@ class gfx_swing {
                   }
                 }
                 break;
+                // region: draw path sx sy sw sh x y w h
+                case 10:
+                {
+                  int sx = (int)Double.parseDouble(parts[i++]);
+                  int sy = (int)Double.parseDouble(parts[i++]);
+                  int sw = (int)Double.parseDouble(parts[i++]);
+                  int sh = (int)Double.parseDouble(parts[i++]);
+                  int x = (int)Double.parseDouble(parts[i++]);
+                  int y = (int)Double.parseDouble(parts[i++]);
+                  int w = (int)Double.parseDouble(parts[i++]);
+                  int h = (int)Double.parseDouble(parts[i++]);
+                  synchronized(backbuffer_mutex) {
+                    g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+sw, sy+sh, null);
+                  }
+                }
+                break;
                 default:
               }
             } else if(command.startsWith("text ")) {

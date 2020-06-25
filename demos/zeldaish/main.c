@@ -486,9 +486,11 @@ void main(int argc, char * argv[]) {
         }
         // pickup items
         else if(item_id && collides_2D(&forward, &item)) {
-          held_item = item_id;
-          item_id = NULL;
-          dict_set(&ignore, held_item, true);
+          if(strcmp(item_id, dict_get(&items, "water")) != 0 || (held_item && strcmp(held_item, dict_get(&items, "bottle")) == 0)) {
+            held_item = item_id;
+            item_id = NULL;
+            dict_set(&ignore, held_item, true);
+          }
         }
         // npc interaction
         else if(npc_id && collides_2D(&forward, &npc)) {
@@ -559,6 +561,7 @@ void main(int argc, char * argv[]) {
               dict_set(&ignore, "dragon", true);
               free(npc_id);
               npc_id = strdup("kaboom");
+              held_item = NULL;
             }
           }
         }

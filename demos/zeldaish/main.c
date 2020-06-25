@@ -116,17 +116,21 @@ void main(int argc, char * argv[]) {
   dict_set(&npcs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
   dict_set(&npcs, "elf", "I'm hungry. I want candy.");
   dict_set(&npcs, "wizard", "I cannot find my magic staff. Will you help?");
+  dict_set(&npcs, "bottle", "The chest is locked.");
   const char * message = NULL;
   struct dict npc_state;
   dict_init(&npc_state, 0, true, false);
   dict_set(&npc_state, "elf", 0);
   dict_set(&npc_state, "wizard", 0);
+  dict_set(&npc_state, "bottle", 0);
   struct dict npc_res;
   dict_init(&npc_res, 0, true, false);
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
   dict_set(&npc_res, "dragon", "dragon.CC0.crawl-tiles.png");
   dict_set(&npc_res, "wizard", "human.CC0.crawl-tiles.png");
+  dict_set(&npc_res, "bottle", "chest_2_closed.CC0.crawl-tiles.png");
   for(int i = 0; i < npc_res.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&npc_res, i));
+  dprintf(gfx, "cache chest_2_open.CC0.crawl-tiles.png\n");
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
   struct dict ignore;
@@ -164,7 +168,7 @@ void main(int argc, char * argv[]) {
   bool loading = true;
   double delta_time = 0;
   double delta_time_worst = 0;
-  double step_per_seconds = 100;
+  double step_per_seconds = 300;
   int facing_index = 0;
   bool facing_mirror = false;
   int facing_frame = 0;
@@ -334,6 +338,7 @@ void main(int argc, char * argv[]) {
                   xmlChar * w = xmlGetProp(node, "width");
                   xmlChar * h = xmlGetProp(node, "height");
                   xmlChar * name = xmlGetProp(node, "name");
+                  printf("NPC in map is %s\n", name);
                   npc.x = strtod(x, NULL);
                   if(w) {
                     npc.w = strtod(w, NULL);
@@ -348,7 +353,12 @@ void main(int argc, char * argv[]) {
                     npc.h = TS;
                     npc.y -= TS / 2;
                   }
-                  if(!dict_has(&ignore, name)) npc_id = strdup(name);
+                  if(!dict_has(&ignore, name)) {
+                    npc_id = strdup(name);
+                    printf("NPC stored\n");
+                  } else {
+                    printf("NPC ignored\n");
+                  }
                   xmlFree(name);
                   xmlFree(h);
                   xmlFree(w);
@@ -478,7 +488,13 @@ void main(int argc, char * argv[]) {
                 dict_set(&npc_state, npc_id, 2);
                 held_item = NULL;
               }
-            } else if(strcmp(npc_id, "wizard") == 0) {
+            } else if(strcmp(npc_id, "bottle") == 0) {
+              if(state == 0 && held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
+                dict_set(&npcs, "bottle", "You open the chest with the key, and find an empty bottle.");
+                dict_set(&npc_state, npc_id, 1);
+                held_item = dict_get(&items, "bottle");
+                dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
+              }
             }
           }
 
@@ -496,7 +512,11 @@ void main(int argc, char * argv[]) {
                 dict_set(&ignore, "elf", true);
                 free(npc_id); npc_id = NULL;
               }
-            } else if(strcmp(npc_id, "wizard") == 0) {
+            } else if(strcmp(npc_id, "bottle") == 0) {
+              if(state == 1) {
+                dict_set(&npcs, "bottle", "The chest is empty.");
+                dict_set(&npc_state, npc_id, 2);
+              }
             }
           }
         }

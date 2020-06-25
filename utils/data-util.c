@@ -90,8 +90,11 @@ intptr_t dict_get_by_index(struct dict * self, size_t i) {
 
 bool dict_has(struct dict * self, intptr_t key) {
   size_t i = _find(self, key);
-  self->has_cache = i;
-  return i < self->size;
+  if(i < self->size && self->key_str? strcmp(self->keys[i], key) == 0 : self->keys[i] == key) {
+    self->has_cache = i;
+    return true;
+  }
+  return false;
 }
 
 // TODO zap

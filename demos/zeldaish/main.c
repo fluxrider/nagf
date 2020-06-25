@@ -129,8 +129,8 @@ void main(int argc, char * argv[]) {
   for(int i = 0; i < npc_res.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&npc_res, i));
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
-  struct dict item_ignore;
-  dict_init(&item_ignore, 0, true, false);
+  struct dict ignore;
+  dict_init(&ignore, 0, true, false);
 
   // states
   double px = 0;
@@ -320,7 +320,7 @@ void main(int argc, char * argv[]) {
                   xmlChar * y = xmlGetProp(node, "y");
                   xmlChar * name = xmlGetProp(node, "name");
                   item_id = dict_get(&items, name);
-                  if(dict_has(&item_ignore, item_id)) item_id = NULL;
+                  if(dict_has(&ignore, item_id)) item_id = NULL;
                   item.x = strtod(x, NULL) - TS/2;
                   item.y = strtod(y, NULL) - TS/2;
                   item.w = TS;
@@ -348,7 +348,7 @@ void main(int argc, char * argv[]) {
                     npc.h = TS;
                     npc.y -= TS / 2;
                   }
-                  npc_id = strdup(name);
+                  if(!dict_has(&ignore, name)) npc_id = strdup(name);
                   xmlFree(name);
                   xmlFree(h);
                   xmlFree(w);
@@ -463,19 +463,38 @@ void main(int argc, char * argv[]) {
         else if(item_id && collides_2D(&forward, &item)) {
           held_item = item_id;
           item_id = NULL;
-          dict_set(&item_ignore, held_item, true);
+          dict_set(&ignore, held_item, true);
         }
         // npc interaction
         else if(npc_id && collides_2D(&forward, &npc)) {
           printf("npc %s\n", npc_id);
+
+          // pre
+          if(dict_has(&npc_state, npc_id)) {
+            int state = dict_get(&npc_state, npc_id);
+            if(strcmp(npc_id, "elf") == 0) {
+              if(state > 0 && held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
+                dict_set(&npcs, "elf", "A candy cane! Thank you so much. You may pass.");
+                dict_set(&npc_state, npc_id, 2);
+                held_item = NULL;
+              }
+            } else if(strcmp(npc_id, "wizard") == 0) {
+            }
+          }
+
           message = dict_get(&npcs, npc_id);
           if(message) printf("%s\n", message);
+          
+          // post
           if(dict_has(&npc_state, npc_id)) {
             int state = dict_get(&npc_state, npc_id);
             if(strcmp(npc_id, "elf") == 0) {
               if(state == 0) {
-                dict_set(&npcs, "elf", "I'm hungry. I want candy!!!");
+                dict_set(&npcs, "elf", "I'm so hungry. I really want candy!");
                 dict_set(&npc_state, npc_id, 1);
+              } else if(state == 2) {
+                dict_set(&ignore, "elf", true);
+                free(npc_id); npc_id = NULL;
               }
             } else if(strcmp(npc_id, "wizard") == 0) {
             }

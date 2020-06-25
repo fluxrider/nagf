@@ -21,6 +21,7 @@ import javax.imageio.*;
 class gfx_swing {
 
   private static int W, H;
+  private static int preferred_W, preferred_H;
   private static double _scale = 1;
   private static boolean hq;
   private static boolean focused, quitting;
@@ -222,9 +223,15 @@ class gfx_swing {
                 _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
 
                 // show window
-                panel.setPreferredSize(new Dimension(W, H));
+                boolean no_pref = preferred_W == 0;
+                if(no_pref) {
+                  preferred_W = W;
+                  preferred_H = H;
+                }
+                panel.setPreferredSize(new Dimension(preferred_W, preferred_H));
                 frame.pack();
                 frame.setLocationRelativeTo(null);
+                if(no_pref) frame.setExtendedState(JFrame.MAXIMIZED_BOTH); 
                 frame.setVisible(true);
               }
 
@@ -243,6 +250,10 @@ class gfx_swing {
               if(backbuffer != null) throw new RuntimeException("there is no support for changing logical size after the fact");
               W = Integer.parseInt(dim[0]);
               H = Integer.parseInt(dim[1]);
+              if(dim.length > 2) {
+                preferred_W = Integer.parseInt(dim[2]);
+                preferred_H = Integer.parseInt(dim[3]);
+              }
             } else if(command.startsWith("scale ")) {
               String [] parts = command.split(" ");
               double sx = Double.parseDouble(parts[1]);

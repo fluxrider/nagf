@@ -169,7 +169,7 @@ void main(int argc, char * argv[]) {
   bool loading = true;
   double delta_time = 0;
   double delta_time_worst = 0;
-  double step_per_seconds = 300;
+  double step_per_seconds = 125;
   int facing_index = 0;
   bool facing_mirror = false;
   int facing_frame = 0;
@@ -353,7 +353,6 @@ void main(int argc, char * argv[]) {
                   xmlChar * w = xmlGetProp(node, "width");
                   xmlChar * h = xmlGetProp(node, "height");
                   xmlChar * name = xmlGetProp(node, "name");
-                  printf("NPC in map is %s\n", name);
                   npc.x = strtod(x, NULL);
                   if(w) {
                     npc.w = strtod(w, NULL);
@@ -368,12 +367,7 @@ void main(int argc, char * argv[]) {
                     npc.h = TS;
                     npc.y -= TS / 2;
                   }
-                  if(!dict_has(&ignore, name)) {
-                    npc_id = strdup(name);
-                    printf("NPC stored\n");
-                  } else {
-                    printf("NPC ignored\n");
-                  }
+                  if(!dict_has(&ignore, name)) npc_id = strdup(name);
                   xmlFree(name);
                   xmlFree(h);
                   xmlFree(w);
@@ -494,8 +488,6 @@ void main(int argc, char * argv[]) {
         }
         // npc interaction
         else if(npc_id && collides_2D(&forward, &npc)) {
-          printf("npc %s\n", npc_id);
-
           // pre
           int state = dict_get(&npc_state, npc_id);
           if(strcmp(npc_id, "elf") == 0) {
@@ -527,8 +519,7 @@ void main(int argc, char * argv[]) {
 
           // mid
           message = dict_get(&npcs, npc_id);
-          if(message) printf("%s\n", message);
-          
+
           // post
           state = dict_get(&npc_state, npc_id);
           if(strcmp(npc_id, "elf") == 0) {
@@ -551,7 +542,6 @@ void main(int argc, char * argv[]) {
             }
           } else if(strcmp(npc_id, "wizard") == 0) {
             if(state == 0) {
-              printf("moving to state 1\n");
               dict_set(&npc_state, npc_id, 1);
             } else if(state == 2) {
               dict_set(&npcs, npc_id, "Thank you for returning my staff.");

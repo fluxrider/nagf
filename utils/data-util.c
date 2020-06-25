@@ -25,6 +25,11 @@ void dict_init(struct dict * self, size_t memcpy_size, bool key_str, bool dup_st
 }
 
 void dict_free(struct dict * self) {
+  if(self->dup_str) {
+    for(int i = 0; i < self->size; i++) {
+      free(self->keys[i]);
+    }
+  }
   free(self->keys);
   free(self->vals);
 }

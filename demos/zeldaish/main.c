@@ -120,9 +120,6 @@ void main(int argc, char * argv[]) {
   const char * message = NULL;
   struct dict npc_state;
   dict_init(&npc_state, 0, true, false);
-  dict_set(&npc_state, "elf", 0);
-  dict_set(&npc_state, "wizard", 0);
-  dict_set(&npc_state, "bottle", 0);
   struct dict npc_res;
   dict_init(&npc_res, 0, true, false);
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
@@ -160,6 +157,7 @@ void main(int argc, char * argv[]) {
   dict_set(&items, "bottle", "bottle.resized.CC0.7soul1.png");
   dict_set(&items, "water", "water.resized.CC0.7soul1.png");
   dict_set(&items, "heart", "heart.resized.CC0.7soul1.png");
+  dict_set(&items, "staff", "staff02.CC0.crawl-tiles.png");
   for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
 
   // game loop
@@ -494,43 +492,51 @@ void main(int argc, char * argv[]) {
           printf("npc %s\n", npc_id);
 
           // pre
-          if(dict_has(&npc_state, npc_id)) {
-            int state = dict_get(&npc_state, npc_id);
-            if(strcmp(npc_id, "elf") == 0) {
-              if(state > 0 && held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
-                dict_set(&npcs, "elf", "A candy cane! Thank you so much. You may pass.");
-                dict_set(&npc_state, npc_id, 2);
-                held_item = NULL;
-              }
-            } else if(strcmp(npc_id, "bottle") == 0) {
-              if(state == 0 && held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
-                dict_set(&npcs, "bottle", "You open the chest with the key, and find an empty bottle.");
-                dict_set(&npc_state, npc_id, 1);
-                held_item = dict_get(&items, "bottle");
-                dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
-              }
+          int state = dict_get(&npc_state, npc_id);
+          if(strcmp(npc_id, "elf") == 0) {
+            if(state > 0 && held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
+              dict_set(&npcs, "elf", "A candy cane! Thank you so much. You may pass.");
+              dict_set(&npc_state, npc_id, 2);
+              held_item = NULL;
+            }
+          } else if(strcmp(npc_id, "bottle") == 0) {
+            if(state == 0 && held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
+              dict_set(&npcs, "bottle", "You open the chest with the key, and find an empty bottle.");
+              dict_set(&npc_state, npc_id, 1);
+              held_item = dict_get(&items, "bottle");
+              dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
+            }
+          } else if(strcmp(npc_id, "flame") == 0) {
+            if(state == 0 && held_item && strcmp(held_item, dict_get(&items, "water")) == 0) {
+              dict_set(&npcs, npc_id, "You douse the flame with your water bottle, and find a magic staff.");
+              dict_set(&npc_state, npc_id, 1);
+              held_item = dict_get(&items, "staff");
             }
           }
 
+          // mid
           message = dict_get(&npcs, npc_id);
           if(message) printf("%s\n", message);
           
           // post
-          if(dict_has(&npc_state, npc_id)) {
-            int state = dict_get(&npc_state, npc_id);
-            if(strcmp(npc_id, "elf") == 0) {
-              if(state == 0) {
-                dict_set(&npcs, "elf", "I'm so hungry. I really want candy!");
-                dict_set(&npc_state, npc_id, 1);
-              } else if(state == 2) {
-                dict_set(&ignore, "elf", true);
-                free(npc_id); npc_id = NULL;
-              }
-            } else if(strcmp(npc_id, "bottle") == 0) {
-              if(state == 1) {
-                dict_set(&npcs, "bottle", "The chest is empty.");
-                dict_set(&npc_state, npc_id, 2);
-              }
+          state = dict_get(&npc_state, npc_id);
+          if(strcmp(npc_id, "elf") == 0) {
+            if(state == 0) {
+              dict_set(&npcs, "elf", "I'm so hungry. I really want candy!");
+              dict_set(&npc_state, npc_id, 1);
+            } else if(state == 2) {
+              dict_set(&ignore, "elf", true);
+              free(npc_id); npc_id = NULL;
+            }
+          } else if(strcmp(npc_id, "bottle") == 0) {
+            if(state == 1) {
+              dict_set(&npcs, "bottle", "The chest is empty.");
+              dict_set(&npc_state, npc_id, 2);
+            }
+          } else if(strcmp(npc_id, "flame") == 0) {
+            if(state == 1) {
+              dict_set(&ignore, "flame", true);
+              free(npc_id); npc_id = NULL;
             }
           }
         }

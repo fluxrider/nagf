@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.2" tiledversion="1.3.5" orientation="orthogonal" renderorder="right-down" width="16" height="11" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="3">
+<map version="1.2" tiledversion="1.3.5" orientation="orthogonal" renderorder="right-down" width="16" height="11" tilewidth="16" tileheight="16" infinite="0" nextlayerid="4" nextobjectid="4">
  <tileset firstgid="1" source="overworld.tsx"/>
  <layer id="1" name="floor" width="16" height="11">
   <data encoding="csv">
@@ -36,5 +36,6 @@
    <point/>
   </object>
   <object id="2" name="garden" type="npc" x="158.727" y="62.1818" width="18.5455" height="17.4545"/>
+  <object id="3" name="water" type="item" x="19.3333" y="18.3333" width="41.3333" height="41.3333"/>
  </objectgroup>
 </map>

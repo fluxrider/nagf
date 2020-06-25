@@ -322,14 +322,28 @@ void main(int argc, char * argv[]) {
                 else if(xmlStrcmp(type, "item") == 0) {
                   xmlChar * x = xmlGetProp(node, "x");
                   xmlChar * y = xmlGetProp(node, "y");
+                  xmlChar * w = xmlGetProp(node, "width");
+                  xmlChar * h = xmlGetProp(node, "height");
                   xmlChar * name = xmlGetProp(node, "name");
                   item_id = dict_get(&items, name);
                   if(dict_has(&ignore, item_id)) item_id = NULL;
-                  item.x = strtod(x, NULL) - TS/2;
-                  item.y = strtod(y, NULL) - TS/2;
-                  item.w = TS;
-                  item.h = TS;
+                  item.x = strtod(x, NULL);
+                  if(w) {
+                    item.w = strtod(w, NULL);
+                  } else {
+                    item.w = TS;
+                    item.x -= TS / 2;
+                  }
+                  item.y = strtod(y, NULL);
+                  if(h) {
+                    item.h = strtod(h, NULL);
+                  } else {
+                    item.h = TS;
+                    item.y -= TS / 2;
+                  }
                   xmlFree(name);
+                  xmlFree(h);
+                  xmlFree(w);
                   xmlFree(y);
                   xmlFree(x);
                 } else if(xmlStrcmp(type, "npc") == 0) {
@@ -550,7 +564,7 @@ void main(int argc, char * argv[]) {
         }
       }
       // draw item
-      if(item_id) {
+      if(item_id && strcmp(item_id, dict_get(&items, "water")) != 0) {
         dprintf(gfx, "draw %s %f %f\n", item_id, item.x, item.y + HUD_H);
       }
       if(held_item) {

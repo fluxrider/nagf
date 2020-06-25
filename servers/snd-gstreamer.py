@@ -51,9 +51,16 @@ def on_enough_data(src):
     error = e
     should_quit.set()
 
-# background song (i.e. only one plays at a time)
+# background song (i.e. only one plays at a time, loops)
 bg = Gst.ElementFactory.make('playbin')
 bg.set_property('video-sink', Gst.ElementFactory.make('fakesink'))
+
+# channels (like bg song, but doesn't loop, meant to be used for stopable sounds like dismissable message dialog)
+channels = []
+for i in range(10):
+  p = Gst.ElementFactory.make('playbin')
+  p.set_property('video-sink', Gst.ElementFactory.make('fakesink'))
+  channels.append(p)
 
 # listen to gstreamer events
 def handle_message_loop(player):
@@ -109,6 +116,22 @@ def handle_fifo_loop():
           elif line.startswith('volume '):
             parts = line.split()
             bg.set_property('volume', combine_volume(float(parts[-2]), float(parts[-1])))
+          # cmd: channel stream <index> <path>
+          if line.startswith('channel stream '):
+            parts = line.split()
+            index = int(parts[-2])
+            channels[index].set_state(Gst.State.NULL)
+            channels[index].set_property('uri', f'file://{os.path.abspath(parts[-1])}')
+            channels[index].set_state(Gst.State.PLAYING)
+          # cmd: channel stop <index>
+          elif line.startswith('channel stop '):
+            index = int(line[13:])
+            channels[index].set_state(Gst.State.NULL)
+          # cmd: channel volume <index> <cubic> <linear>
+          elif line.startswith('channel volume '):
+            parts = line.split()
+            index = int(parts[-3])
+            channels[index].set_property('volume', combine_volume(float(parts[-2]), float(parts[-1])))
           # cmd: cache <path>
           elif line.startswith('cache '):
             # ignore TODO still track coherence of cache/fire/zap
@@ -176,9 +199,13 @@ def handle_fifo_loop():
 
 # start listening
 bg.set_property('volume', combine_volume(1, 1))
+for p in channels:
+  p.set_property('volume', combine_volume(1, 1))
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
 threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()
+for p in channels:
+  threading.Thread(target=handle_message_loop, args=(p,), daemon=True).start()
 
 try:
   should_quit.wait()

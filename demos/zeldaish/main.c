@@ -111,15 +111,9 @@ void main(int argc, char * argv[]) {
   const char * item_id = NULL;
   struct rect npc;
   char * npc_id = NULL;
-  struct dict npcs;
-  dict_init(&npcs, 0, true, false);
-  dict_set(&npcs, "garden", "This garden belongs to princess purple dress. No trespassing please.");
-  dict_set(&npcs, "elf", "I'm hungry. I want candy.");
-  dict_set(&npcs, "wizard", "I cannot find my magic staff. Will you help?");
-  dict_set(&npcs, "bottle", "The chest is locked.");
   const char * message = NULL;
   struct dict npc_state;
-  dict_init(&npc_state, 0, true, true);
+  dict_init(&npc_state, 0, true, false);
   struct dict npc_res;
   dict_init(&npc_res, 0, true, false);
   dict_set(&npc_res, "elf", "boggart.CC0.crawl-tiles.png");
@@ -477,6 +471,7 @@ void main(int argc, char * argv[]) {
         // dismiss dialog
         if(message) {
           message = NULL;
+          dprintf(snd, "channel stop 0\n");
         }
         // pickup items
         else if(item_id && collides_2D(&forward, &item)) {
@@ -488,68 +483,62 @@ void main(int argc, char * argv[]) {
         }
         // npc interaction
         else if(npc_id && collides_2D(&forward, &npc)) {
-          // pre
           int state = dict_get(&npc_state, npc_id);
           if(strcmp(npc_id, "elf") == 0) {
-            if(state > 0 && held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
-              dict_set(&npcs, "elf", "A candy cane! Thank you so much. You may pass.");
-              dict_set(&npc_state, npc_id, 2);
-              held_item = NULL;
+            if(state == 0) {
+              message = "I'm hungry. I want candy.";
+              dict_set(&npc_state, "elf", 1);
+            } else {
+              if(held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
+                message = "A candy cane! Thank you so much. You may pass.";
+                held_item = NULL;
+                dict_set(&ignore, "elf", true); free(npc_id); npc_id = NULL;
+                dict_set(&npc_state, "elf", 2);
+              } else {
+                message = "I'm so hungry. I really want candy!";
+              }
             }
           } else if(strcmp(npc_id, "bottle") == 0) {
-            if(state == 0 && held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
-              dict_set(&npcs, "bottle", "You open the chest with the key, and find an empty bottle.");
-              dict_set(&npc_state, npc_id, 1);
-              held_item = dict_get(&items, "bottle");
-              dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
+            if(state == 0) {
+              if(held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
+                message = "You open the chest with the key, and find an empty bottle.";
+                held_item = dict_get(&items, npc_id);
+                dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
+                dict_set(&npc_state, "bottle", 1);
+              } else {
+                message = "The chest is locked.";
+              }
+            } else if(state == 1) {
+              message = "The chest is empty.";
             }
           } else if(strcmp(npc_id, "flame") == 0) {
-            if(state == 0 && held_item && strcmp(held_item, dict_get(&items, "water")) == 0) {
-              dict_set(&npcs, npc_id, "You douse the flame with your water bottle, and find a magic staff.");
-              dict_set(&npc_state, npc_id, 1);
-              held_item = dict_get(&items, "staff");
+            if(state == 0) {
+              if(held_item && strcmp(held_item, dict_get(&items, "water")) == 0) {
+                message = "You douse the flame with your water bottle, and find a magic staff.";
+                held_item = dict_get(&items, "staff");
+                dict_set(&ignore, "flame", true); free(npc_id); npc_id = NULL;
+                dict_set(&npc_state, "flame", 1);
+              }
             }
           } else if(strcmp(npc_id, "wizard") == 0) {
             if(state == 1 && held_item && strcmp(held_item, dict_get(&items, "staff")) == 0) {
-              dict_set(&npcs, npc_id, "You found my staff. Thank you. Let me teach you the magic spell 'Kaboom'.");
-              dict_set(&npc_state, npc_id, 2);
+              message = "You found my staff. Thank you. Let me teach you the magic spell 'Kaboom'.";
+              dict_set(&npc_state, "wizard", 2);
               held_item = dict_get(&items, "spell");
+            } else {
+              if(state == 2) {
+                message = "Thank you for returning my staff.";
+              } else {
+                message = "I cannot find my magic staff. Will you help?";
+                if(state == 0) dict_set(&npc_state, "wizard", 1);
+              }
             }
-          }
-
-          // mid
-          message = dict_get(&npcs, npc_id);
-
-          // post
-          state = dict_get(&npc_state, npc_id);
-          if(strcmp(npc_id, "elf") == 0) {
-            if(state == 0) {
-              dict_set(&npcs, "elf", "I'm so hungry. I really want candy!");
-              dict_set(&npc_state, npc_id, 1);
-            } else if(state == 2) {
-              dict_set(&ignore, "elf", true);
-              free(npc_id); npc_id = NULL;
-            }
-          } else if(strcmp(npc_id, "bottle") == 0) {
-            if(state == 1) {
-              dict_set(&npcs, "bottle", "The chest is empty.");
-              dict_set(&npc_state, npc_id, 2);
-            }
-          } else if(strcmp(npc_id, "flame") == 0) {
-            if(state == 1) {
-              dict_set(&ignore, "flame", true);
-              free(npc_id); npc_id = NULL;
-            }
-          } else if(strcmp(npc_id, "wizard") == 0) {
-            if(state == 0) {
-              dict_set(&npc_state, npc_id, 1);
-            } else if(state == 2) {
-              dict_set(&npcs, npc_id, "Thank you for returning my staff.");
-            }
+          } else if(strcmp(npc_id, "garden") == 0) {
+            message = "This garden belongs to princess purple dress. No trespassing please.";
+            dprintf(snd, "channel stream 0 bg.ogg\n");
           } else if(strcmp(npc_id, "dragon") == 0) {
             if(held_item && strcmp(held_item, dict_get(&items, "spell")) == 0) {
-              dict_set(&ignore, "dragon", true);
-              free(npc_id);
+              dict_set(&ignore, "dragon", true); free(npc_id);
               npc_id = strdup("kaboom");
               held_item = NULL;
             }
@@ -667,6 +656,11 @@ void main(int argc, char * argv[]) {
 
   // disconnect
   if(npc_id) free(npc_id);
+  dict_free(&warps);
+  dict_free(&npc_state);
+  dict_free(&npc_res);
+  dict_free(&ignore);
+  dict_free(&items);
   dict_free(&blocking_tiles);
   dict_free(&animated_tiles);
   xmlFree(tileset_image);

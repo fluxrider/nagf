@@ -54,13 +54,19 @@ def on_enough_data(src):
 # background song (i.e. only one plays at a time, loops)
 bg = Gst.ElementFactory.make('playbin')
 bg.set_property('video-sink', Gst.ElementFactory.make('fakesink'))
+bg_vol_cubic = 1
+bg_vol_linear = 1
 
 # channels (like bg song, but doesn't loop, meant to be used for stopable sounds like dismissable message dialog)
 channels = []
+channels_vol_cubic = []
+channels_vol_linear = []
 for i in range(10):
   p = Gst.ElementFactory.make('playbin')
   p.set_property('video-sink', Gst.ElementFactory.make('fakesink'))
   channels.append(p)
+  channels_vol_cubic.append(1)
+  channels_vol_linear.append(1)
 
 # listen to gstreamer events
 def handle_message_loop(player):
@@ -92,6 +98,8 @@ server_fifo_path = 'snd.fifo'
 def handle_fifo_loop():
   global error
   global should_quit
+  global bg_vol_cubic
+  global bg_vol_linear
   try:
     with contextlib.suppress(FileNotFoundError): os.remove(server_fifo_path)
     os.mkfifo(server_fifo_path)
@@ -108,6 +116,7 @@ def handle_fifo_loop():
           if line.startswith('stream '):
             bg.set_state(Gst.State.NULL)
             bg.set_property('uri', f'file://{os.path.abspath(line[7:])}')
+            bg.set_property('volume', combine_volume(bg_vol_cubic, bg_vol_linear))
             bg.set_state(Gst.State.PLAYING)
           # cmd: stop (the stream)
           elif line == 'stop':
@@ -115,13 +124,16 @@ def handle_fifo_loop():
           # cmd: volume <cubic> <linear>
           elif line.startswith('volume '):
             parts = line.split()
-            bg.set_property('volume', combine_volume(float(parts[-2]), float(parts[-1])))
+            bg_vol_cubic = float(parts[-2])
+            bg_vol_linear = float(parts[-1])
+            bg.set_property('volume', combine_volume(bg_vol_cubic, bg_vol_linear))
           # cmd: channel stream <index> <path>
           elif line.startswith('channel stream '):
             parts = line.split()
             index = int(parts[-2])
             channels[index].set_state(Gst.State.NULL)
             channels[index].set_property('uri', f'file://{os.path.abspath(parts[-1])}')
+            channels[index].set_property('volume', combine_volume(channels_vol_cubic[index], channels_vol_linear[index]))
             channels[index].set_state(Gst.State.PLAYING)
           # cmd: channel stop <index>
           elif line.startswith('channel stop '):
@@ -131,7 +143,9 @@ def handle_fifo_loop():
           elif line.startswith('channel volume '):
             parts = line.split()
             index = int(parts[-3])
-            channels[index].set_property('volume', combine_volume(float(parts[-2]), float(parts[-1])))
+            channels_vol_cubic[index] = float(parts[-2])
+            channels_vol_linear[index] = float(parts[-1])
+            channels[index].set_property('volume', combine_volume(channels_vol_cubic[index], channels_vol_linear[index]))
           # cmd: cache <path>
           elif line.startswith('cache '):
             # ignore TODO still track coherence of cache/fire/zap
@@ -198,9 +212,9 @@ def handle_fifo_loop():
     should_quit.set()
 
 # start listening
-bg.set_property('volume', combine_volume(1, 1))
-for p in channels:
-  p.set_property('volume', combine_volume(1, 1))
+bg.set_property('volume', combine_volume(bg_vol_cubic, bg_vol_linear))
+for index in range(len(channels)):
+  channels[index].set_property('volume', combine_volume(channels_vol_cubic[index], channels_vol_linear[index]))
 handle_fifo_loop_thread = threading.Thread(target=handle_fifo_loop, daemon=True)
 handle_fifo_loop_thread.start()
 threading.Thread(target=handle_message_loop, args=(bg,), daemon=True).start()

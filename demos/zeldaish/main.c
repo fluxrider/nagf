@@ -67,7 +67,18 @@ void main(int argc, char * argv[]) {
   struct srr_direct * gmm = srr_direct(&gfs);
   int gfx = open("gfx.fifo", O_WRONLY); if(gfx == -1) { perror("open(gfx.fifo)"); exit(EXIT_FAILURE); }
   int snd = open("snd.fifo", O_WRONLY); if(snd == -1) { perror("open(snd.fifo)"); exit(EXIT_FAILURE); }
-  
+
+  // game setup
+  int W = 256;
+  int H = 224;
+  double bg_volume = .7;
+  dprintf(snd, "volume %f 1\n", bg_volume);
+  dprintf(snd, "stream bg.ogg\n");
+  dprintf(gfx, "title %s\n", argv[0]);
+  dprintf(gfx, "hq\n");
+  dprintf(gfx, "window %d %d\n", W, H);
+  dprintf(gfx, "cache DejaVuSans-Bold.ttf\n");
+
   // world
   struct map_node fountain = {"fountain.tmx"};
   struct map_node forest = {"forest.tmx"};
@@ -108,6 +119,18 @@ void main(int argc, char * argv[]) {
   dprintf(gfx, "cache chest_2_open.CC0.crawl-tiles.png\n");
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
+  dprintf(gfx, "cache princess.png\n");
+  struct rect collision = {1, 14, 12, 8}; // hard-coded princess collision box
+  struct dict items;
+  dict_init(&items, 0, true, false);
+  dict_set(&items, "cane", "cane.resized.CC0.7soul1.png");
+  dict_set(&items, "key", "key.resized.CC0.7soul1.png");
+  dict_set(&items, "bottle", "bottle.resized.CC0.7soul1.png");
+  dict_set(&items, "water", "water.resized.CC0.7soul1.png");
+  dict_set(&items, "heart", "heart.resized.CC0.7soul1.png");
+  dict_set(&items, "staff", "staff02.CC0.crawl-tiles.png");
+  dict_set(&items, "spell", "scroll-thunder.CC0.pixel-boy.png");
+  for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
 
   // map
   const int TS = 16;
@@ -138,43 +161,21 @@ void main(int argc, char * argv[]) {
   struct dict ignore;
   dict_init(&ignore, 0, true, false);
 
-  // game setup
-  int W = 256;
-  int H = 224;
-  dprintf(snd, "stream bg.ogg\n");
-  dprintf(gfx, "title %s\n", argv[0]);
-  dprintf(gfx, "hq\n");
-  dprintf(gfx, "window %d %d\n", W, H);
-  dprintf(gfx, "cache DejaVuSans-Bold.ttf\n");
-  dprintf(gfx, "cache princess.png\n");
-  struct dict items;
-  dict_init(&items, 0, true, false);
-  dict_set(&items, "cane", "cane.resized.CC0.7soul1.png");
-  dict_set(&items, "key", "key.resized.CC0.7soul1.png");
-  dict_set(&items, "bottle", "bottle.resized.CC0.7soul1.png");
-  dict_set(&items, "water", "water.resized.CC0.7soul1.png");
-  dict_set(&items, "heart", "heart.resized.CC0.7soul1.png");
-  dict_set(&items, "staff", "staff02.CC0.crawl-tiles.png");
-  dict_set(&items, "spell", "scroll-thunder.CC0.pixel-boy.png");
-  for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
-
   // game loop
   bool running = true;
   bool focused = true;
-  bool loading = true;
+  bool loading = true; // TODO proper loading screen
+  uint64_t tick = 0;
   double delta_time = 0;
-  double delta_time_worst = 0;
   double step_per_seconds = 125;
   int facing_index = 0;
   bool facing_mirror = false;
   int facing_frame = 0;
   uint64_t walking_t0;
-  uint64_t tick = 0;
   const int walking_period = 300;
-  struct rect collision = {1, 14, 12, 8}; // hard-coded princess collision box
   while(running) {
     // parse map created with Tiled (https://www.mapeditor.org/)
-    // [with assumptions on tile size, single tileset across all maps, single warp rect, single npc)
+    // [with many assumptions like tile size, single tileset across all maps, single warp rect, single npc]
     if(next_map) {
       layers_size = 0;
       warp_map = NULL;
@@ -473,7 +474,7 @@ void main(int argc, char * argv[]) {
         if(message) {
           message = NULL;
           dprintf(snd, "channel stop 0\n");
-          dprintf(snd, "volume 1 1\n");
+          dprintf(snd, "volume %f 1\n", bg_volume);
         }
         // pickup items
         else if(item_id && collides_2D(&forward, &item)) {
@@ -657,9 +658,7 @@ void main(int argc, char * argv[]) {
     if(gmm->msg[i++] != GFX_STAT_DLT) { printf("unexpected stat result, wanted delta time\n"); exit(EXIT_FAILURE); }
     tick += *(int *)&gmm->msg[i];
     delta_time = *(int *)&gmm->msg[i] / 1000.0;
-    if(tick > 1000 && delta_time > delta_time_worst) delta_time_worst = delta_time;
     i+= 4;
-    //printf("%d\t%d\n", (int)(delta_time_worst * 1000), (int)(delta_time * 1000));
     if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
     if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
     int w = *(int *)&gmm->msg[i]; i+= 4;

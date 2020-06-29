@@ -171,7 +171,7 @@ class gfx_swing {
     });
 
     // resources
-    Map<String, Object> cache = new TreeMap<>();
+    Map<String, Object> cache = Collections.synchronizedSortedMap(new TreeMap<>());
 
     // fifo thread (actual io)
     Queue<String> fifo_queue = new LinkedList<String>();
@@ -294,66 +294,70 @@ class gfx_swing {
               String [] parts = command.split(" ");
               int i = 1;
               String path = parts[i++];
-              switch(parts.length) {
-                // normal: draw path x y
-                case 4:
-                {
-                  int x = (int)Double.parseDouble(parts[i++]);
-                  int y = (int)Double.parseDouble(parts[i++]);
-                  synchronized(backbuffer_mutex) {
-                    g.drawImage((BufferedImage)cache.get(path), x, y, null);
-                  }
-                }
-                break;
-                // scaled: draw path x y w h
-                case 6:
-                {
-                  int x = (int)Double.parseDouble(parts[i++]);
-                  int y = (int)Double.parseDouble(parts[i++]);
-                  int w = (int)Double.parseDouble(parts[i++]);
-                  int h = (int)Double.parseDouble(parts[i++]);
-                  synchronized(backbuffer_mutex) {
-                    g.drawImage((BufferedImage)cache.get(path), x, y, w, h, null);
-                  }
-                }
-                break;
-                // region: draw path sx sy w h x y (mx=mirror-x)
-                case 8:
-                case 9:
-                {
-                  int sx = (int)Double.parseDouble(parts[i++]);
-                  int sy = (int)Double.parseDouble(parts[i++]);
-                  int w = (int)Double.parseDouble(parts[i++]);
-                  int h = (int)Double.parseDouble(parts[i++]);
-                  int x = (int)Double.parseDouble(parts[i++]);
-                  int y = (int)Double.parseDouble(parts[i++]);
-                  boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
-                  synchronized(backbuffer_mutex) {
-                    if(mirror_x) {
-                      g.drawImage((BufferedImage)cache.get(path), x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
-                    } else {
-                      g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+              BufferedImage image = (BufferedImage)cache.get(path);
+              if(image == null) System.out.println("GFX error: null image resource for " + path); else {
+                switch(parts.length) {
+                  // normal: draw path x y
+                  case 4:
+                  {
+                    int x = (int)Double.parseDouble(parts[i++]);
+                    int y = (int)Double.parseDouble(parts[i++]);
+                    synchronized(backbuffer_mutex) {
+                      g.drawImage(image, x, y, null);
                     }
                   }
-                }
-                break;
-                // region: draw path sx sy sw sh x y w h
-                case 10:
-                {
-                  int sx = (int)Double.parseDouble(parts[i++]);
-                  int sy = (int)Double.parseDouble(parts[i++]);
-                  int sw = (int)Double.parseDouble(parts[i++]);
-                  int sh = (int)Double.parseDouble(parts[i++]);
-                  int x = (int)Double.parseDouble(parts[i++]);
-                  int y = (int)Double.parseDouble(parts[i++]);
-                  int w = (int)Double.parseDouble(parts[i++]);
-                  int h = (int)Double.parseDouble(parts[i++]);
-                  synchronized(backbuffer_mutex) {
-                    g.drawImage((BufferedImage)cache.get(path), x, y, x+w, y+h, sx, sy, sx+sw, sy+sh, null);
+                  break;
+                  // scaled: draw path x y w h
+                  case 6:
+                  {
+                    int x = (int)Double.parseDouble(parts[i++]);
+                    int y = (int)Double.parseDouble(parts[i++]);
+                    int w = (int)Double.parseDouble(parts[i++]);
+                    int h = (int)Double.parseDouble(parts[i++]);
+                    synchronized(backbuffer_mutex) {
+                      g.drawImage(image, x, y, w, h, null);
+                    }
                   }
+                  break;
+                  // region: draw path sx sy w h x y (mx=mirror-x)
+                  case 8:
+                  case 9:
+                  {
+                    int sx = (int)Double.parseDouble(parts[i++]);
+                    int sy = (int)Double.parseDouble(parts[i++]);
+                    int w = (int)Double.parseDouble(parts[i++]);
+                    int h = (int)Double.parseDouble(parts[i++]);
+                    int x = (int)Double.parseDouble(parts[i++]);
+                    int y = (int)Double.parseDouble(parts[i++]);
+                    boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
+                    synchronized(backbuffer_mutex) {
+                      if(mirror_x) {
+                        g.drawImage(image, x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
+                      } else {
+                        g.drawImage(image, x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
+                      }
+                    }
+                  }
+                  break;
+                  // region: draw path sx sy sw sh x y w h
+                  case 10:
+                  {
+                    int sx = (int)Double.parseDouble(parts[i++]);
+                    int sy = (int)Double.parseDouble(parts[i++]);
+                    int sw = (int)Double.parseDouble(parts[i++]);
+                    int sh = (int)Double.parseDouble(parts[i++]);
+                    int x = (int)Double.parseDouble(parts[i++]);
+                    int y = (int)Double.parseDouble(parts[i++]);
+                    int w = (int)Double.parseDouble(parts[i++]);
+                    int h = (int)Double.parseDouble(parts[i++]);
+                    synchronized(backbuffer_mutex) {
+                      g.drawImage(image, x, y, x+w, y+h, sx, sy, sx+sw, sy+sh, null);
+                    }
+                  }
+                  break;
+                  default:
+                    System.out.println("GFX error: bad draw command " + command);
                 }
-                break;
-                default:
               }
             } else if(command.startsWith("text ")) {
               // text font x y w h valign halign line_count clip scroll outline_color fill_color message
@@ -387,70 +391,72 @@ class gfx_swing {
                 // get font size
                 FontRenderContext frc = g.getFontRenderContext();
                 Font font = (Font)cache.get(path);
-                font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
+                if(font == null) System.out.println("GFX error: null font resource for " + path); else {
+                  font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
 
-                // break explicit \n into multiple lines
-                String t = text.toString();
-                List<String> lines = new ArrayList<>();
-                int escape = t.indexOf​("\\n");
-                while(escape != -1) {
-                  lines.add(text.substring(0, escape));
-                  t = text.substring(escape + 2);
-                  escape = t.indexOf​("\\n");
-                }
-                lines.add(t);
+                  // break explicit \n into multiple lines
+                  String t = text.toString();
+                  List<String> lines = new ArrayList<>();
+                  int escape = t.indexOf​("\\n");
+                  while(escape != -1) {
+                    lines.add(text.substring(0, escape));
+                    t = text.substring(escape + 2);
+                    escape = t.indexOf​("\\n");
+                  }
+                  lines.add(t);
 
-                // text to glyph, break lines and repeat
-                ListIterator<String> itr = lines.listIterator();
-                List<GlyphVector> glyphs = new ArrayList<>();
-                while(itr.hasNext()) {
-                  String line = itr.next();
-                  int end = line.length();
-                  GlyphVector gv = font.createGlyphVector(frc, line);
-                  Rectangle2D box = gv.getVisualBounds();
-                  while(box.getWidth() > w) {
-                    // move to previous space
-                    int new_end = line.substring(0, end).lastIndexOf(' ');
-                    if(new_end == -1) break; // we did our best
-                    end = new_end;
-                    gv = font.createGlyphVector(frc, line.substring(0, end));
-                    box = gv.getVisualBounds();
+                  // text to glyph, break lines and repeat
+                  ListIterator<String> itr = lines.listIterator();
+                  List<GlyphVector> glyphs = new ArrayList<>();
+                  while(itr.hasNext()) {
+                    String line = itr.next();
+                    int end = line.length();
+                    GlyphVector gv = font.createGlyphVector(frc, line);
+                    Rectangle2D box = gv.getVisualBounds();
+                    while(box.getWidth() > w) {
+                      // move to previous space
+                      int new_end = line.substring(0, end).lastIndexOf(' ');
+                      if(new_end == -1) break; // we did our best
+                      end = new_end;
+                      gv = font.createGlyphVector(frc, line.substring(0, end));
+                      box = gv.getVisualBounds();
+                    }
+                    glyphs.add(gv);
+                    if(end != line.length()) {
+                      itr.add(line.substring(end+1));
+                      itr.previous();
+                    }
                   }
-                  glyphs.add(gv);
-                  if(end != line.length()) {
-                    itr.add(line.substring(end+1));
-                    itr.previous();
-                  }
-                }
 
-                // render with outline
-                Shape clip = null;
-                if(do_clip) {
-                  clip = g.getClip();
-                  g.clipRect((int)x,(int)y,(int)w,(int)h);
-                }
-                double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
-                y += scroll;
-                y += outline_size;
-                if(valign.equals("bottom")) y += h - glyphs.size() * line_height;
-                else if(valign.equals("center")) y += (h - glyphs.size() * line_height) / 2;
-                for(GlyphVector gv : glyphs) {
-                  Rectangle2D box = gv.getVisualBounds();
-                  double tx = x - box.getX() + outline_size;
-                  if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
-                  else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
-                  Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent));
-                  g.setColor(fill);
-                  g.fill(shape);
-                  if(outline_size > 0) {
-                    g.setStroke(new BasicStroke((float)outline_size));
-                    g.setColor(outline);
-                    g.draw(shape);
+                  // render with outline
+                  Shape clip = null;
+                  if(do_clip) {
+                    clip = g.getClip();
+                    g.clipRect((int)x,(int)y,(int)w,(int)h);
                   }
-                  y += line_height;
-                }
-                if(do_clip) {
-                  g.setClip(clip);
+                  double descent = tight? 1 : font.getLineMetrics("tj", frc).getDescent();
+                  y += scroll;
+                  y += outline_size;
+                  if(valign.equals("bottom")) y += h - glyphs.size() * line_height;
+                  else if(valign.equals("center")) y += (h - glyphs.size() * line_height) / 2;
+                  for(GlyphVector gv : glyphs) {
+                    Rectangle2D box = gv.getVisualBounds();
+                    double tx = x - box.getX() + outline_size;
+                    if(halign.equals("right")) tx += w - box.getWidth() - 1 - 2 * outline_size;
+                    else if(halign.equals("center")) tx += (w - box.getWidth() - 1 - outline_size) / 2;
+                    Shape shape = gv.getOutline((float)tx, (float)(y + line_height - descent));
+                    g.setColor(fill);
+                    g.fill(shape);
+                    if(outline_size > 0) {
+                      g.setStroke(new BasicStroke((float)outline_size));
+                      g.setColor(outline);
+                      g.draw(shape);
+                    }
+                    y += line_height;
+                  }
+                  if(do_clip) {
+                    g.setClip(clip);
+                  }
                 }
               }
             } else if(command.startsWith("fill ")) {
@@ -523,16 +529,16 @@ class gfx_swing {
                   // but we'll print a warning because of the horrid lag.
                   long max_wait = 500;
                   while(max_wait > 0 && flush_post.availablePermits() == 0) {
-                    System.out.println("Warning: waiting for fifo to drain for stat.");
+                    System.out.println("GFX Warning: waiting for fifo to drain for stat.");
                     Thread.sleep(10);
                     res = cache.get(path);
                     if(res != null) break;
                     max_wait -= 10;
                   }
-                  if(max_wait <= 0) System.out.println("Warning: reached max waiting period");
-                  else System.out.println("Warning: had to wait " + (500 - max_wait) + " ms.");
+                  if(max_wait <= 0) System.out.println("GFX Warning: reached max waiting period");
+                  else System.out.println("GFX Warning: had to wait " + (500 - max_wait) + " ms.");
                 }
-                if(res == null) { res = new RuntimeException("unknown path"); }
+                if(res == null) { res = new RuntimeException("unknown resource"); }
                 if(res instanceof Exception) {
                   srr.msg.put((byte)0);
                   if(res instanceof FileNotFoundException) {

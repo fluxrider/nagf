@@ -36,6 +36,7 @@ class gfx_swing {
   public static byte GFX_STAT_IMG = 1;
   public static byte GFX_STAT_FNT = 2;
   public static byte GFX_STAT_DLT = 3;
+  public static boolean first_flush = true;
   
   // main
   public static void main(String[] args) throws Exception {
@@ -219,7 +220,8 @@ class gfx_swing {
             synchronized(fifo_queue) { command = fifo_queue.remove(); }
             if(command.equals("flush")) {
               // finish setting up window on first flush
-              if(!frame.isVisible()) {
+              if(first_flush) {
+                first_flush = false;
                 // show window
                 boolean no_pref = preferred_W == 0;
                 if(no_pref) {

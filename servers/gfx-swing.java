@@ -36,6 +36,7 @@ class gfx_swing {
   public static byte GFX_STAT_IMG = 1;
   public static byte GFX_STAT_FNT = 2;
   public static byte GFX_STAT_DLT = 3;
+  public static byte GFX_STAT_ALL = 4;
   public static boolean first_flush = true;
   
   // main
@@ -307,7 +308,7 @@ class gfx_swing {
                             reader.setInput(stream);
                             IIOReadProgressListener listener = new IIOReadProgressListener() {
                               public void imageComplete(ImageReader source) { }
-                              public void imageProgress(ImageReader source, float percentageDone) { p.value = percentageDone; }
+                              public void imageProgress(ImageReader source, float percentageDone) { p.value = percentageDone / 100; }
                               public void imageStarted(ImageReader source, int imageIndex) { }
                               public void readAborted(ImageReader source) { }
                               public void sequenceComplete(ImageReader source) { }
@@ -588,20 +589,7 @@ class gfx_swing {
                 }
                 if(res == null) { res = new RuntimeException("unknown resource"); }
                 if(res instanceof Exception) {
-                  srr.msg.put(GFX_STAT_ERR);
-                  if(res instanceof FileNotFoundException) {
-                    srr.msg.put((byte)(int)'F'); 
-                    srr.msg.put((byte)(int)'N'); 
-                    srr.msg.put((byte)(int)'F'); 
-                  } else if(res instanceof IOException) {
-                    srr.msg.put((byte)(int)'I'); 
-                    srr.msg.put((byte)(int)'O'); 
-                    srr.msg.put((byte)(int)' '); 
-                  } else {
-                    srr.msg.put((byte)(int)'E'); 
-                    srr.msg.put((byte)(int)' '); 
-                    srr.msg.put((byte)(int)' '); 
-                  }
+                  reply_stat_error(srr, (Exception)res);
                 } else if(res instanceof BufferedImage) {
                   srr.msg.put(GFX_STAT_IMG);
                   BufferedImage image = (BufferedImage)res;
@@ -609,13 +597,31 @@ class gfx_swing {
                   srr.msg.putInt(image.getHeight());
                 } else if(res instanceof Font) {
                   srr.msg.put(GFX_STAT_FNT);
-                  // new Canvas().getFontMetrics(font);
+                  srr.msg.putInt(1);
+                  srr.msg.putInt(1);
                 } else if(res instanceof Progress) {
                   Progress p = (Progress)res;
                   srr.msg.put(p.what);
                   srr.msg.putInt(0);
                   srr.msg.putInt((int)(p.value * 1000));
                 }
+              } else if(command.equals("statall")) {
+                // check the state of everything in the cache to do a cummulative progress
+                int p = 0;
+                for(Object res : cache.values()) {
+                  if(res == null) continue;
+                  else if(res instanceof Exception) {
+                    reply_stat_error(srr, (Exception)res);
+                    break;
+                  }
+                  else if(res instanceof Progress) {
+                    p += (int)(((Progress)res).value * 1000);
+                  } else {
+                    p += 1000;
+                  }
+                }
+                srr.msg.put(GFX_STAT_ALL);
+                srr.msg.putInt(p / cache.size());
               } else {
                 throw new RuntimeException("unknown command: " + command);
               }
@@ -644,6 +650,23 @@ class gfx_swing {
     public double value;
     public Progress(int what) {
       this.what = (byte)what;
+    }
+  }
+  
+  private static void reply_stat_error(srr srr, Exception e) {
+    srr.msg.put(GFX_STAT_ERR);
+    if(e instanceof FileNotFoundException) {
+      srr.msg.put((byte)(int)'F'); 
+      srr.msg.put((byte)(int)'N'); 
+      srr.msg.put((byte)(int)'F'); 
+    } else if(e instanceof IOException) {
+      srr.msg.put((byte)(int)'I'); 
+      srr.msg.put((byte)(int)'O'); 
+      srr.msg.put((byte)(int)' '); 
+    } else {
+      srr.msg.put((byte)(int)'E'); 
+      srr.msg.put((byte)(int)' '); 
+      srr.msg.put((byte)(int)' '); 
     }
   }
   

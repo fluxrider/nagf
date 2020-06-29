@@ -131,6 +131,8 @@ void main(int argc, char * argv[]) {
   dict_set(&items, "staff", "staff02.CC0.crawl-tiles.png");
   dict_set(&items, "spell", "scroll-thunder.CC0.pixel-boy.png");
   for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
+  // for sake of demo, also preload the known tileset file
+  dprintf(gfx, "cache overworld.CC0.ArMM1998.png\n");
 
   // map
   const int TS = 16;
@@ -160,13 +162,44 @@ void main(int argc, char * argv[]) {
   dict_init(&npc_state, 0, true, false);
   struct dict ignore;
   dict_init(&ignore, 0, true, false);
-
-  // game loop
   bool running = true;
   bool focused = true;
-  bool loading = true; // TODO proper loading screen
-  uint64_t tick = 0;
+
+  // loading screen
+  int progress = 0;
+  while(running) {
+    // input
+    sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
+    running &= !evt_released(&evt, K_ESC);
+    // progress bar
+    dprintf(gfx, "fill 000000 0 0 %d %d\n", W, H);
+    double w = W * .8;
+    double h = H * .1;
+    double x = (W - w) / 2;
+    double y = (H - h) / 2;
+    dprintf(gfx, "fill 004400 %f %f %f %f\n", x, y, w, h);
+    dprintf(gfx, "fill 00ff00 %f %f %f %f\n", x, y, w * (progress / 1000.0), h);
+    // progress numeric value
+    dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center center 1 noclip 0 ffffff 000000 1 %.2f\n", x, y, w, h, progress / 1000.0);
+    // flush
+    dprintf(gfx, "flush\n");
+    sprintf(gmm->msg, "flush statall"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    // I want to ensure we see the 100% frame, so break after flush
+    if(progress == 1000) break;
+    // read progress
+    int i = 0;
+    focused = gmm->msg[i++];
+    running &= !gmm->msg[i++];
+    i += 8; // skip over W/H
+    // progress
+    if(gmm->msg[i] == GFX_STAT_ERR) { printf("statall error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
+    if(gmm->msg[i++] != GFX_STAT_ALL) { printf("unexpected statall result\n"); exit(EXIT_FAILURE); }
+    progress = *(int *)&gmm->msg[i];
+  }
+
+  // game loop
   double delta_time = 0;
+  uint64_t tick = 0;
   double step_per_seconds = 125;
   int facing_index = 0;
   bool facing_mirror = false;
@@ -388,283 +421,276 @@ void main(int argc, char * argv[]) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
     running &= !evt_released(&evt, K_ESC);
-    if(!loading) {
-      // walking
-      struct evt_axis_and_triggers_normalized axis = evt_deadzoned(evt_axis_and_triggers(&evt, 0), .2, .2);
-      if(evt_held(&evt, G0_DOWN) || evt_held(&evt, K_S)) axis.ly = fmin(1, axis.ly + 1);
-      if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W)) axis.ly = fmax(-1, axis.ly - 1);
-      if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D)) axis.lx = fmin(1, axis.lx + 1);
-      if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A)) axis.lx = fmax(-1, axis.lx - 1);
-      if(axis.lx != 0 || axis.ly != 0) {
-        // up/down
-        if(fabs(axis.ly) > fabs(axis.lx)) {
-          facing_index = (axis.ly < 0)? 2 : 0;
-          // double up number of animation frame by mirroring half the time
-          facing_mirror = (tick - walking_t0) % (walking_period * 2) < walking_period;
-          forward.y = py + collision.y + ((axis.ly < 0)? -forward.h : collision.h);
-          forward.x = px + collision.x - (forward.w - collision.w) / 2;
-        }
-        // left/right
-        else {
-          facing_index = 1;
-          facing_mirror = axis.lx < 0; // left is right mirrored
-          forward.y = py + collision.y - (forward.h - collision.h) / 2;
-          forward.x = px + collision.x + ((axis.lx < 0)? -forward.w: collision.w);
-        }
-        // two-frame animation
-        facing_frame = ((tick - walking_t0) % walking_period < walking_period/2)? 1 : 0;
-      } else {
-        facing_frame = 0;
-        walking_t0 = tick;
+    // walking
+    struct evt_axis_and_triggers_normalized axis = evt_deadzoned(evt_axis_and_triggers(&evt, 0), .2, .2);
+    if(evt_held(&evt, G0_DOWN) || evt_held(&evt, K_S)) axis.ly = fmin(1, axis.ly + 1);
+    if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W)) axis.ly = fmax(-1, axis.ly - 1);
+    if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D)) axis.lx = fmin(1, axis.lx + 1);
+    if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A)) axis.lx = fmax(-1, axis.lx - 1);
+    if(axis.lx != 0 || axis.ly != 0) {
+      // up/down
+      if(fabs(axis.ly) > fabs(axis.lx)) {
+        facing_index = (axis.ly < 0)? 2 : 0;
+        // double up number of animation frame by mirroring half the time
+        facing_mirror = (tick - walking_t0) % (walking_period * 2) < walking_period;
+        forward.y = py + collision.y + ((axis.ly < 0)? -forward.h : collision.h);
+        forward.x = px + collision.x - (forward.w - collision.w) / 2;
       }
-      // collision
-      {
-        // tentative new position
-        double nx = px + delta_time * step_per_seconds * axis.lx;
-        double ny = py + delta_time * step_per_seconds * axis.ly;
-        // test dimensions separately to allow sliding
-        // simply test the corners, and assume speed is low so I don't need collision response
-        bool blocked_x = false;
-        bool break_x = false;
-        bool test_npc = npc_id && dict_get(&npc_res, npc_id);
-        if(warp_map && collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &warp)) { break_x = true; next_map = warp_map; warping = true; }
-        if(!break_x && item_id) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &item);
-        if(test_npc && !break_x && !blocked_x) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &npc);
-        for(int i = 0, x = nx + collision.x; !break_x && !blocked_x && i < 2; i++, x += collision.w) {
-          for(int j = 0, y = py + collision.y; !break_x && !blocked_x && j < 2; j++, y += collision.h) {
-            if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
-            else if(x >= MAP_COL * TS && map->east) { break_x = true; next_map = map->east; nx -= MAP_COL * TS - collision.w; }
-            else {
-              blocked_x |= y < 0 || y >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
-              int col = (int)(x / TS);
-              int row = (int)(y / TS);
-              for(int k = 0; !blocked_x && k < layers_size; k++) {
-                int tile = layers[k][row][col] - 1;
-                blocked_x |= dict_get(&blocking_tiles, tile);
-              }
-            }
-          }
-        }
-        bool blocked_y = false;
-        bool break_y = false;
-        if(warp_map && collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &warp)) { break_y = true; next_map = warp_map; warping = true; }
-        if(!break_y && item_id) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &item);
-        if(test_npc && !break_y && !blocked_y) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &npc);
-        for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
-          for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
-            if(y < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
-            else if(y >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision.h; }
-            else {
-              blocked_y |= y < 0 || y >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
-              int col = (int)(x / TS);
-              int row = (int)(y / TS);
-              for(int k = 0; !blocked_y && k < layers_size; k++) {
-                int tile = layers[k][row][col] - 1;
-                blocked_y |= dict_get(&blocking_tiles, tile);
-              }
-            }
-          }
-        }
-        if(!blocked_x) px = nx;
-        if(!blocked_y) py = ny;
+      // left/right
+      else {
+        facing_index = 1;
+        facing_mirror = axis.lx < 0; // left is right mirrored
+        forward.y = py + collision.y - (forward.h - collision.h) / 2;
+        forward.x = px + collision.x + ((axis.lx < 0)? -forward.w: collision.w);
       }
-      // action button (activate stuff forward, dismiss message box)
-      if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH)) {
-        // dismiss dialog
-        if(message) {
-          message = NULL;
-          dprintf(snd, "channel stop 0\n");
-          dprintf(snd, "volume %f 1\n", bg_volume);
-        }
-        // pickup items
-        else if(item_id && collides_2D(&forward, &item)) {
-          if(strcmp(item_id, dict_get(&items, "water")) != 0 || (held_item && strcmp(held_item, dict_get(&items, "bottle")) == 0)) {
-            held_item = item_id;
-            item_id = NULL;
-            dict_set(&ignore, held_item, true);
-          }
-        }
-        // npc interaction
-        else if(npc_id && collides_2D(&forward, &npc)) {
-          int state = dict_get(&npc_state, npc_id);
-          if(strcmp(npc_id, "elf") == 0) {
-            if(state == 0) {
-              message = "I'm hungry. I want candy.";
-              dprintf(snd, "channel stream 0 elf_0.ogg\n");
-              dict_set(&npc_state, "elf", 1);
-            } else {
-              if(held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
-                message = "A candy cane! Thank you so much. You may pass.";
-                dprintf(snd, "channel stream 0 elf_2.ogg\n");
-                held_item = NULL;
-                dict_set(&ignore, "elf", true); free(npc_id); npc_id = NULL;
-                dict_set(&npc_state, "elf", 2);
-              } else {
-                message = "I'm so hungry. I really want candy!";
-                dprintf(snd, "channel stream 0 elf_1.ogg\n");
-              }
-            }
-          } else if(strcmp(npc_id, "bottle") == 0) {
-            if(state == 0) {
-              if(held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
-                message = "You open the chest with the key, and find an empty bottle.";
-                dprintf(snd, "channel stream 0 open.ogg\n");
-                held_item = dict_get(&items, npc_id);
-                dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
-                dict_set(&npc_state, "bottle", 1);
-              } else {
-                message = "The chest is locked.";
-                dprintf(snd, "channel stream 0 locked.ogg\n");
-              }
-            } else if(state == 1) {
-              message = "The chest is empty.";
-              dprintf(snd, "channel stream 0 empty.ogg\n");
-            }
-          } else if(strcmp(npc_id, "flame") == 0) {
-            if(state == 0) {
-              if(held_item && strcmp(held_item, dict_get(&items, "water")) == 0) {
-                message = "You douse the flame with your water bottle, and find a magic staff.";
-                dprintf(snd, "channel stream 0 flame.ogg\n");
-                held_item = dict_get(&items, "staff");
-                dict_set(&ignore, "flame", true); free(npc_id); npc_id = NULL;
-                dict_set(&npc_state, "flame", 1);
-              }
-            }
-          } else if(strcmp(npc_id, "wizard") == 0) {
-            if(state == 1 && held_item && strcmp(held_item, dict_get(&items, "staff")) == 0) {
-              message = "You found my staff. Thank you. Let me teach you the magic spell 'Kaboom'.";
-              dprintf(snd, "channel stream 0 wiz_1.ogg\n");
-              dict_set(&npc_state, "wizard", 2);
-              held_item = dict_get(&items, "spell");
-            } else {
-              if(state == 2) {
-                message = "Thank you for returning my staff.";
-                dprintf(snd, "channel stream 0 wiz_2.ogg\n");
-              } else {
-                message = "I cannot find my magic staff. Will you help?";
-                dprintf(snd, "channel stream 0 wiz_0.ogg\n");
-                if(state == 0) dict_set(&npc_state, "wizard", 1);
-              }
-            }
-          } else if(strcmp(npc_id, "garden") == 0) {
-            message = "This is princess Purple Dress's garden, and don't go pass it or eat the carrots please.";
-            dprintf(snd, "channel stream 0 garden.ogg\n");
-          } else if(strcmp(npc_id, "dragon") == 0) {
-            if(held_item && strcmp(held_item, dict_get(&items, "spell")) == 0) {
-              dict_set(&ignore, "dragon", true); free(npc_id);
-              npc_id = strdup("kaboom");
-              held_item = NULL;
-            }
-          }
-        }
-        if(message) dprintf(snd, "volume .3 1\n");
-      }
-
-      // hud
-      const int HUD_H = 3 * TS;
-      dprintf(gfx, "fill 000000 0 0 %d %d\n", W, HUD_H);
-      // draw tilemap
-      for(int i = 0; i < layers_size; i++) {
-        for(int row = 0; row < MAP_ROW; row++) {
-          for(int col = 0; col < MAP_COL; col++) {
-            int tile = layers[i][row][col];
-            if(tile != 0) {
-              tile = tile - 1;
-              // handle animated tiles
-              struct tile_animation * anim = dict_get(&animated_tiles, tile);
-              if(anim) {
-                uint64_t t = tick % anim->total_duration;
-                for(int i = 0; i < anim->size; i++) {
-                  if(t < anim->durations[i]) { tile = anim->ids[i]; break; }
-                  t-= anim->durations[i];
-                }
-              }
-              int x = TS * col;
-              int y = TS * row + HUD_H;
-              int tx = TS * (tile % tileset_columns);
-              int ty = TS * (tile / tileset_columns);
-              dprintf(gfx, "draw %s %d %d %d %d %d %d\n", tileset_image, tx, ty, TS, TS, x, y);
-            }
-          }
-        }
-      }
-      // draw item
-      if(item_id && strcmp(item_id, dict_get(&items, "water")) != 0) {
-        dprintf(gfx, "draw %s %f %f\n", item_id, item.x, item.y + HUD_H);
-      }
-      if(held_item) {
-        dprintf(gfx, "draw %s %f %f\n", held_item, (W - TS) / 2.0, HUD_H / 2.0 - TS);
-      }
-      // draw npc
-      if(npc_id) {
-        const char * res = dict_get(&npc_res, npc_id);
-        if(res) {
-          // case flame animation
-          if(strcmp(npc_id, "flame") == 0) {
-            uint64_t flame_period = 400;
-            snprintf(tmp_buff, 256, res, (int)((tick % flame_period) / (double)flame_period * 8 + 1));
-            res = tmp_buff;
-          }
-          double w = npc.w;
-          double h = npc.h;
-          double x = npc.x;
-          double y = npc.y;
-          // case dragon dimensions are his patrol region, not draw size, and neither is drawn position
-          if(strcmp(npc_id, "dragon") == 0 || strcmp(npc_id, "kaboom") == 0) {
-            w = h = 2 * TS;
-            x = fmin(fmax(npc.x, px), npc.x + npc.w - w);
-            y = npc.y + npc.h - h;
-          }
-          if(strcmp(npc_id, "kaboom") == 0) {
-            if(kaboom_t0 == -1) {
-              kaboom_t0 = tick;
-            }
-            uint64_t kaboom_duration = 1000;
-            if(tick >= kaboom_t0 + kaboom_duration) {
-              free(npc_id); npc_id = NULL;
-            } else {
-              double sx = (int)((tick - kaboom_t0) / (double)kaboom_duration * 5) * 16;
-              double sy = 0;
-              dprintf(gfx, "draw %s %f %f %f %f %f %f %f %f\n", res, sx, sy, 16.0, 16.0, x, y + HUD_H, w, h);
-            }
-          } else {
-            dprintf(gfx, "draw %s %f %f %f %f\n", res, x, y + HUD_H, w, h);
-          }
-        }
-      }
-      // draw player
-      dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
-
-      // message box
-      if(message) {
-        double w = W * .8;
-        double h = (H - HUD_H) * .3;
-        int n = h / 10;
-        double x = (W - w) / 2;
-        double y = (H - HUD_H - h) / 2 + HUD_H;
-        dprintf(gfx, "fill 88888888 %f %f %f %f\n", x, y, w, h);
-        dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
-      }
-
-      // fps
-      dprintf(gfx, "text DejaVuSans-Bold.ttf 1 0 255 16 top left 2 noclip 0 ffffff 00ff00 0 ms:%d\\nfps:%2.1f\n", (int)(delta_time * 1000), 1 / (double)delta_time);
+      // two-frame animation
+      facing_frame = ((tick - walking_t0) % walking_period < walking_period/2)? 1 : 0;
+    } else {
+      facing_frame = 0;
+      walking_t0 = tick;
     }
+    // collision
+    {
+      // tentative new position
+      double nx = px + delta_time * step_per_seconds * axis.lx;
+      double ny = py + delta_time * step_per_seconds * axis.ly;
+      // test dimensions separately to allow sliding
+      // simply test the corners, and assume speed is low so I don't need collision response
+      bool blocked_x = false;
+      bool break_x = false;
+      bool test_npc = npc_id && dict_get(&npc_res, npc_id);
+      if(warp_map && collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &warp)) { break_x = true; next_map = warp_map; warping = true; }
+      if(!break_x && item_id) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &item);
+      if(test_npc && !break_x && !blocked_x) blocked_x = collides_2D_dx(nx + collision.x, py + collision.y, collision.w, collision.h, &npc);
+      for(int i = 0, x = nx + collision.x; !break_x && !blocked_x && i < 2; i++, x += collision.w) {
+        for(int j = 0, y = py + collision.y; !break_x && !blocked_x && j < 2; j++, y += collision.h) {
+          if(x < 0 && map->west) { break_x = true; next_map = map->west; nx += MAP_COL * TS - collision.w; }
+          else if(x >= MAP_COL * TS && map->east) { break_x = true; next_map = map->east; nx -= MAP_COL * TS - collision.w; }
+          else {
+            blocked_x |= y < 0 || y >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+            int col = (int)(x / TS);
+            int row = (int)(y / TS);
+            for(int k = 0; !blocked_x && k < layers_size; k++) {
+              int tile = layers[k][row][col] - 1;
+              blocked_x |= dict_get(&blocking_tiles, tile);
+            }
+          }
+        }
+      }
+      bool blocked_y = false;
+      bool break_y = false;
+      if(warp_map && collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &warp)) { break_y = true; next_map = warp_map; warping = true; }
+      if(!break_y && item_id) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &item);
+      if(test_npc && !break_y && !blocked_y) blocked_y = collides_2D_dx(px + collision.x, ny + collision.y, collision.w, collision.h, &npc);
+      for(int i = 0, x = px + collision.x; !break_y && !blocked_y && i < 2; i++, x += collision.w) {
+        for(int j = 0, y = ny + collision.y; !break_y && !blocked_y && j < 2; j++, y += collision.h) {
+          if(y < 0 && map->north) { break_y = true; next_map = map->north; ny += MAP_ROW * TS - collision.h; }
+          else if(y >= MAP_ROW * TS && map->south) { break_y = true; next_map = map->south; ny -= MAP_ROW * TS - collision.h; }
+          else {
+            blocked_y |= y < 0 || y >= MAP_ROW * TS || x < 0 || x >= MAP_COL * TS;
+            int col = (int)(x / TS);
+            int row = (int)(y / TS);
+            for(int k = 0; !blocked_y && k < layers_size; k++) {
+              int tile = layers[k][row][col] - 1;
+              blocked_y |= dict_get(&blocking_tiles, tile);
+            }
+          }
+        }
+      }
+      if(!blocked_x) px = nx;
+      if(!blocked_y) py = ny;
+    }
+    // action button (activate stuff forward, dismiss message box)
+    if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH)) {
+      // dismiss dialog
+      if(message) {
+        message = NULL;
+        dprintf(snd, "channel stop 0\n");
+        dprintf(snd, "volume %f 1\n", bg_volume);
+      }
+      // pickup items
+      else if(item_id && collides_2D(&forward, &item)) {
+        if(strcmp(item_id, dict_get(&items, "water")) != 0 || (held_item && strcmp(held_item, dict_get(&items, "bottle")) == 0)) {
+          held_item = item_id;
+          item_id = NULL;
+          dict_set(&ignore, held_item, true);
+        }
+      }
+      // npc interaction
+      else if(npc_id && collides_2D(&forward, &npc)) {
+        int state = dict_get(&npc_state, npc_id);
+        if(strcmp(npc_id, "elf") == 0) {
+          if(state == 0) {
+            message = "I'm hungry. I want candy.";
+            dprintf(snd, "channel stream 0 elf_0.ogg\n");
+            dict_set(&npc_state, "elf", 1);
+          } else {
+            if(held_item && strcmp(held_item, dict_get(&items, "cane")) == 0) {
+              message = "A candy cane! Thank you so much. You may pass.";
+              dprintf(snd, "channel stream 0 elf_2.ogg\n");
+              held_item = NULL;
+              dict_set(&ignore, "elf", true); free(npc_id); npc_id = NULL;
+              dict_set(&npc_state, "elf", 2);
+            } else {
+              message = "I'm so hungry. I really want candy!";
+              dprintf(snd, "channel stream 0 elf_1.ogg\n");
+            }
+          }
+        } else if(strcmp(npc_id, "bottle") == 0) {
+          if(state == 0) {
+            if(held_item && strcmp(held_item, dict_get(&items, "key")) == 0) {
+              message = "You open the chest with the key, and find an empty bottle.";
+              dprintf(snd, "channel stream 0 open.ogg\n");
+              held_item = dict_get(&items, npc_id);
+              dict_set(&npc_res, "bottle", "chest_2_open.CC0.crawl-tiles.png");
+              dict_set(&npc_state, "bottle", 1);
+            } else {
+              message = "The chest is locked.";
+              dprintf(snd, "channel stream 0 locked.ogg\n");
+            }
+          } else if(state == 1) {
+            message = "The chest is empty.";
+            dprintf(snd, "channel stream 0 empty.ogg\n");
+          }
+        } else if(strcmp(npc_id, "flame") == 0) {
+          if(state == 0) {
+            if(held_item && strcmp(held_item, dict_get(&items, "water")) == 0) {
+              message = "You douse the flame with your water bottle, and find a magic staff.";
+              dprintf(snd, "channel stream 0 flame.ogg\n");
+              held_item = dict_get(&items, "staff");
+              dict_set(&ignore, "flame", true); free(npc_id); npc_id = NULL;
+              dict_set(&npc_state, "flame", 1);
+            }
+          }
+        } else if(strcmp(npc_id, "wizard") == 0) {
+          if(state == 1 && held_item && strcmp(held_item, dict_get(&items, "staff")) == 0) {
+            message = "You found my staff. Thank you. Let me teach you the magic spell 'Kaboom'.";
+            dprintf(snd, "channel stream 0 wiz_1.ogg\n");
+            dict_set(&npc_state, "wizard", 2);
+            held_item = dict_get(&items, "spell");
+          } else {
+            if(state == 2) {
+              message = "Thank you for returning my staff.";
+              dprintf(snd, "channel stream 0 wiz_2.ogg\n");
+            } else {
+              message = "I cannot find my magic staff. Will you help?";
+              dprintf(snd, "channel stream 0 wiz_0.ogg\n");
+              if(state == 0) dict_set(&npc_state, "wizard", 1);
+            }
+          }
+        } else if(strcmp(npc_id, "garden") == 0) {
+          message = "This is princess Purple Dress's garden, and don't go pass it or eat the carrots please.";
+          dprintf(snd, "channel stream 0 garden.ogg\n");
+        } else if(strcmp(npc_id, "dragon") == 0) {
+          if(held_item && strcmp(held_item, dict_get(&items, "spell")) == 0) {
+            dict_set(&ignore, "dragon", true); free(npc_id);
+            npc_id = strdup("kaboom");
+            held_item = NULL;
+          }
+        }
+      }
+      if(message) dprintf(snd, "volume .3 1\n");
+    }
+
+    // hud
+    const int HUD_H = 3 * TS;
+    dprintf(gfx, "fill 000000 0 0 %d %d\n", W, HUD_H);
+    // draw tilemap
+    for(int i = 0; i < layers_size; i++) {
+      for(int row = 0; row < MAP_ROW; row++) {
+        for(int col = 0; col < MAP_COL; col++) {
+          int tile = layers[i][row][col];
+          if(tile != 0) {
+            tile = tile - 1;
+            // handle animated tiles
+            struct tile_animation * anim = dict_get(&animated_tiles, tile);
+            if(anim) {
+              uint64_t t = tick % anim->total_duration;
+              for(int i = 0; i < anim->size; i++) {
+                if(t < anim->durations[i]) { tile = anim->ids[i]; break; }
+                t-= anim->durations[i];
+              }
+            }
+            int x = TS * col;
+            int y = TS * row + HUD_H;
+            int tx = TS * (tile % tileset_columns);
+            int ty = TS * (tile / tileset_columns);
+            dprintf(gfx, "draw %s %d %d %d %d %d %d\n", tileset_image, tx, ty, TS, TS, x, y);
+          }
+        }
+      }
+    }
+    // draw item
+    if(item_id && strcmp(item_id, dict_get(&items, "water")) != 0) {
+      dprintf(gfx, "draw %s %f %f\n", item_id, item.x, item.y + HUD_H);
+    }
+    if(held_item) {
+      dprintf(gfx, "draw %s %f %f\n", held_item, (W - TS) / 2.0, HUD_H / 2.0 - TS);
+    }
+    // draw npc
+    if(npc_id) {
+      const char * res = dict_get(&npc_res, npc_id);
+      if(res) {
+        // case flame animation
+        if(strcmp(npc_id, "flame") == 0) {
+          uint64_t flame_period = 400;
+          snprintf(tmp_buff, 256, res, (int)((tick % flame_period) / (double)flame_period * 8 + 1));
+          res = tmp_buff;
+        }
+        double w = npc.w;
+        double h = npc.h;
+        double x = npc.x;
+        double y = npc.y;
+        // case dragon dimensions are his patrol region, not draw size, and neither is drawn position
+        if(strcmp(npc_id, "dragon") == 0 || strcmp(npc_id, "kaboom") == 0) {
+          w = h = 2 * TS;
+          x = fmin(fmax(npc.x, px), npc.x + npc.w - w);
+          y = npc.y + npc.h - h;
+        }
+        if(strcmp(npc_id, "kaboom") == 0) {
+          if(kaboom_t0 == -1) {
+            kaboom_t0 = tick;
+          }
+          uint64_t kaboom_duration = 1000;
+          if(tick >= kaboom_t0 + kaboom_duration) {
+            free(npc_id); npc_id = NULL;
+          } else {
+            double sx = (int)((tick - kaboom_t0) / (double)kaboom_duration * 5) * 16;
+            double sy = 0;
+            dprintf(gfx, "draw %s %f %f %f %f %f %f %f %f\n", res, sx, sy, 16.0, 16.0, x, y + HUD_H, w, h);
+          }
+        } else {
+          dprintf(gfx, "draw %s %f %f %f %f\n", res, x, y + HUD_H, w, h);
+        }
+      }
+    }
+    // draw player
+    dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
+
+    // message box
+    if(message) {
+      double w = W * .8;
+      double h = (H - HUD_H) * .3;
+      int n = h / 10;
+      double x = (W - w) / 2;
+      double y = (H - HUD_H - h) / 2 + HUD_H;
+      dprintf(gfx, "fill 88888888 %f %f %f %f\n", x, y, w, h);
+      dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
+    }
+
+    // fps
+    dprintf(gfx, "text DejaVuSans-Bold.ttf 1 0 255 16 top left 2 noclip 0 ffffff 00ff00 0 ms:%d\\nfps:%2.1f\n", (int)(delta_time * 1000), 1 / (double)delta_time);
+
     // flush
     dprintf(gfx, "flush\n");
-    sprintf(gmm->msg, "flush delta stat %s", tileset_image); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
-    focused = gmm->msg[0];
-    running &= !gmm->msg[1];
-    int i = 10;
+    sprintf(gmm->msg, "flush delta"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    int i = 0;
+    focused = gmm->msg[i++];
+    running &= !gmm->msg[i++];
+    i += 8; // skip over W/H
     if(gmm->msg[i++] != GFX_STAT_DLT) { printf("unexpected stat result, wanted delta time\n"); exit(EXIT_FAILURE); }
     tick += *(int *)&gmm->msg[i];
     delta_time = *(int *)&gmm->msg[i] / 1000.0;
-    i+= 4;
-    if(gmm->msg[i] == GFX_STAT_ERR) { printf("stat error %c%c%c\n", gmm->msg[i+1], gmm->msg[i+2], gmm->msg[i+3]); exit(EXIT_FAILURE); }
-    if(gmm->msg[i++] != GFX_STAT_IMG) { printf("unexpected stat result, wanted img\n"); exit(EXIT_FAILURE); }
-    int w = *(int *)&gmm->msg[i]; i+= 4;
-    int h = *(int *)&gmm->msg[i]; i+= 4;
-    loading = w == 0;
-    if(loading) { printf("loading progress %f\n", h / 1000.0); }
   }
 
   // disconnect

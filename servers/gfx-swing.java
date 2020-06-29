@@ -17,6 +17,8 @@ import java.nio.*;
 import java.nio.file.*;
 import java.util.concurrent.*;
 import javax.imageio.*;
+import javax.imageio.event.*;
+import javax.imageio.stream.*;
 
 class gfx_swing {
 
@@ -29,6 +31,11 @@ class gfx_swing {
   private static BufferedImage frontbuffer;
   private static Graphics2D g;
   private static Graphics2D _g;
+
+  public static byte GFX_STAT_ERR = 2;
+  public static byte GFX_STAT_IMG = 1;
+  public static byte GFX_STAT_FNT = 2;
+  public static byte GFX_STAT_DLT = 3;
   
   // main
   public static void main(String[] args) throws Exception {
@@ -271,23 +278,62 @@ class gfx_swing {
               stored_at = null;
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
-              if(path.endsWith(".ttf")) {
-                System.out.println("caching a font: " + path);
-                try {
-                  cache.put(path, Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path)));
-                } catch(Exception e) { 
-                  System.out.println("error caching font " + e);
-                  cache.put(path, e);
+              if(cache.get(path) != null) System.out.println("GFX cache refresh " + path); else {
+                if(path.endsWith(".ttf")) {
+                  cache.put(path, new Progress(GFX_STAT_FNT));
+                  new Thread(new Runnable() {
+                    public void run() {
+                      try {
+                        cache.put(path, Font.createFont(java.awt.Font.TRUETYPE_FONT, new File(path)));
+                      } catch(Exception e) { 
+                        System.out.println("GFX error caching font " + e);
+                        cache.put(path, e);
+                      }
+                    }
+                  }).start();
                 }
-              }
-              // anything but .ttf goes through ImageIO
-              else {
-                System.out.println("caching an image: " + path);
-                try {
-                  cache.put(path, ImageIO.read(new File(path)));
-                } catch(Exception e) { 
-                  System.out.println("error caching image " + e);
-                  cache.put(path, e);
+                // anything but .ttf goes through ImageIO
+                else {
+                  Progress p = new Progress(GFX_STAT_IMG);
+                  cache.put(path, p);
+                  new Thread(new Runnable() {
+                    public void run() {
+                      try {
+                        ImageInputStream stream = ImageIO.createImageInputStream(new File(path));
+                        Iterator<ImageReader> readers_itr = ImageIO.getImageReaders​(stream);
+                        if(!readers_itr.hasNext()) cache.put(path, new RuntimeException("unsupported image format"));
+                        Exception error = null;
+                        while(readers_itr.hasNext()) {
+                          try {
+                            ImageReader reader = readers_itr.next();
+                            reader.setInput(stream);
+                            IIOReadProgressListener listener = new IIOReadProgressListener() {
+                              public void imageComplete(ImageReader source) { }
+                              public void imageProgress(ImageReader source, float percentageDone) { p.value = percentageDone; }
+                              public void imageStarted(ImageReader source, int imageIndex) { }
+                              public void readAborted(ImageReader source) { }
+                              public void sequenceComplete(ImageReader source) { }
+                              public void sequenceStarted(ImageReader source, int minIndex) { }
+                              public void thumbnailComplete(ImageReader source) { }
+                              public void thumbnailProgress(ImageReader source, float percentageDone) { }
+                              public void thumbnailStarted(ImageReader source, int imageIndex, int thumbnailIndex) { }
+                            };
+                            reader.addIIOReadProgressListener​(listener);
+                            cache.put(path, reader.read(0));
+                            reader.removeIIOReadProgressListener​(listener);
+                            error = null;
+                          } catch(Exception e) {
+                            System.out.println("GFX error caching image " + e + " try again? " + readers_itr.hasNext());
+                            if(error == null) error = e;
+                          }
+                          if(error == null) break;
+                        }
+                      } catch(Exception e) { 
+                        System.out.println("GFX general error caching image " + e);
+                        cache.put(path, e);
+                      }
+                    }
+                  }).start();
                 }
               }
             } else if(command.startsWith("draw ")) {
@@ -516,7 +562,7 @@ class gfx_swing {
                 // let fifo resume
                 flush_post.release();
               } else if(command.equals("delta")) {
-                srr.msg.put((byte)3);
+                srr.msg.put(GFX_STAT_DLT);
                 srr.msg.putInt((int)delta_time);
               } else if(command.equals("stat")) {
                 String path = sync[i++];
@@ -540,7 +586,7 @@ class gfx_swing {
                 }
                 if(res == null) { res = new RuntimeException("unknown resource"); }
                 if(res instanceof Exception) {
-                  srr.msg.put((byte)0);
+                  srr.msg.put(GFX_STAT_ERR);
                   if(res instanceof FileNotFoundException) {
                     srr.msg.put((byte)(int)'F'); 
                     srr.msg.put((byte)(int)'N'); 
@@ -555,12 +601,12 @@ class gfx_swing {
                     srr.msg.put((byte)(int)' '); 
                   }
                 } else if(res instanceof BufferedImage) {
-                  srr.msg.put((byte)1);
+                  srr.msg.put(GFX_STAT_IMG);
                   BufferedImage image = (BufferedImage)res;
                   srr.msg.putInt(image.getWidth());
                   srr.msg.putInt(image.getHeight());
                 } else if(res instanceof Font) {
-                  srr.msg.put((byte)2);
+                  srr.msg.put(GFX_STAT_FNT);
                   // new Canvas().getFontMetrics(font);
                 } else if(res instanceof Progress) {
                   Progress p = (Progress)res;
@@ -591,9 +637,12 @@ class gfx_swing {
     System.exit(0);
   }
 
-  private class Progress {
+  private static class Progress {
     public byte what;
     public double value;
+    public Progress(int what) {
+      this.what = (byte)what;
+    }
   }
   
   private static Color parse_color(String hex) {

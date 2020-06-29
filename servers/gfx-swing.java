@@ -219,16 +219,7 @@ class gfx_swing {
             synchronized(fifo_queue) { command = fifo_queue.remove(); }
             if(command.equals("flush")) {
               // finish setting up window on first flush
-              if(backbuffer == null) {
-                if(W == 0) W = 800;
-                if(H == 0) H = 450;
-    
-                // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
-                backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
-                frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
-                g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
-                _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
-
+              if(!frame.isVisible()) {
                 // show window
                 boolean no_pref = preferred_W == 0;
                 if(no_pref) {
@@ -261,6 +252,11 @@ class gfx_swing {
                 preferred_W = Integer.parseInt(dim[2]);
                 preferred_H = Integer.parseInt(dim[3]);
               }
+              // create a backbuffer for drawing offline, and a front buffer to use when drawing the panel
+              backbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_ARGB);
+              frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+              g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
+              _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
             } else if(command.startsWith("scale ")) {
               String [] parts = command.split(" ");
               double sx = Double.parseDouble(parts[1]);
@@ -340,8 +336,10 @@ class gfx_swing {
               String [] parts = command.split(" ");
               int i = 1;
               String path = parts[i++];
-              BufferedImage image = (BufferedImage)cache.get(path);
-              if(image == null) System.out.println("GFX error: null image resource for " + path); else {
+              Object c = cache.get(path);
+              if(c == null) System.out.println("GFX error: null image resource for " + path); else
+              if(!(c instanceof BufferedImage)) System.out.println("GFX error: no image resource ready for " + path); else {
+                BufferedImage image = (BufferedImage)c;
                 switch(parts.length) {
                   // normal: draw path x y
                   case 4:
@@ -436,8 +434,10 @@ class gfx_swing {
               synchronized(backbuffer_mutex) {
                 // get font size
                 FontRenderContext frc = g.getFontRenderContext();
-                Font font = (Font)cache.get(path);
-                if(font == null) System.out.println("GFX error: null font resource for " + path); else {
+                Object c = cache.get(path);
+                if(c == null) System.out.println("GFX error: null font resource for " + path); else
+                if(!(c instanceof Font)) System.out.println("GFX error: no font resource ready for " + path); else {
+                  Font font = (Font)c;
                   font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
 
                   // break explicit \n into multiple lines

@@ -65,4 +65,8 @@ echo '---- cleanup ----'
 rm *.fifo
 rm /dev/shm/$demo_name*
 rm $demo_name
+pushd ../..
+find . -name "*.class" -type f -delete
+find . -name "*.so" -type f -delete
+popd
 trap SIGINT

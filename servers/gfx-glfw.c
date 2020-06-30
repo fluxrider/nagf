@@ -1,5 +1,5 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later.
-// gcc -o gfx-glfw gfx-glfw.c gfx-glfw_freetype-gl/*.c $(pkg-config --libs --cflags x11 opengl glfw3 glew freetype2 MagickWand) -lpthread -lm && ./gfx-glfw
+// xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.vert > text.vert.xxd && xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.frag > text.frag.xxd && xxd -i < gfx-glfw.img.vert > img.vert.xxd && xxd -i < gfx-glfw.img.frag > img.frag.xxd && gcc -o gfx-glfw gfx-glfw.c gfx-glfw_freetype-gl/*.c $(pkg-config --libs --cflags x11 opengl glfw3 glew freetype2 MagickWand) -lpthread -lm && rm *.xxd && ./gfx-glfw
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -18,6 +18,30 @@
 #include "gfx-glfw_freetype-gl/shader.h"
 #include "gfx-glfw_freetype-gl/vertex-buffer.h"
 #include <GLFW/glfw3.h>
+
+static GLuint shader_load_from_src(const char * vert_source, const char * frag_source) {
+  GLuint handle = glCreateProgram();
+
+  GLuint vert_shader = shader_compile(vert_source, GL_VERTEX_SHADER);
+  glAttachShader(handle, vert_shader);
+  glDeleteShader(vert_shader);
+
+  GLuint frag_shader = shader_compile(frag_source, GL_FRAGMENT_SHADER);
+  glAttachShader(handle, frag_shader);
+  glDeleteShader(frag_shader);
+
+  glLinkProgram(handle);
+
+  GLint link_status;
+  glGetProgramiv(handle, GL_LINK_STATUS, &link_status);
+  if(!link_status) {
+    GLchar messages[256];
+    glGetProgramInfoLog(handle, sizeof(messages), 0, messages);
+    fprintf(stderr, "%s\n", messages);
+    exit(1);
+  }
+  return handle;
+}
 
 static bool starts_with(const char * s, const char * start) {
   return strncmp(start, s, strlen(start)) == 0;
@@ -118,10 +142,22 @@ int main(int argc, char** argv) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   vertex_buffer_t * text_buffer = vertex_buffer_new("vertex:3f,tex_coord:2f,color:4f");
-  GLuint font_shader = shader_load("gfx-glfw_freetype-gl/v3f-t2f-c4f.vert", "gfx-glfw_freetype-gl/v3f-t2f-c4f.frag"); // TODO relative path to CWD... nah, just embed them
+  char text_shader_vert[] = {
+  #include "text.vert.xxd"
+  , 0 };
+  char text_shader_frag[] = { 
+  #include "text.frag.xxd"
+  , 0 };
+  GLuint font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
 
   // images
-  GLuint img_shader = shader_load("gfx-glfw_freetype-gl/tmp.vert", "gfx-glfw_freetype-gl/tmp.frag"); // TODO embed them
+  char img_shader_vert[] = {
+  #include "img.vert.xxd"
+  , 0 };
+  char img_shader_frag[] = { 
+  #include "img.frag.xxd"
+  , 0 };
+  GLuint img_shader = shader_load_from_src(img_shader_vert, img_shader_frag);
   GLuint my_img;
   glGenTextures(1, &my_img);
   glBindTexture(GL_TEXTURE_2D, my_img);
@@ -148,7 +184,6 @@ int main(int argc, char** argv) {
   RelinquishMagickMemory(img_blob);
   DestroyMagickWand(magick);
   MagickWandTerminus();
-
 
   // main loop
   double t0 = glfwGetTime();

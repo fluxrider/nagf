@@ -6,8 +6,8 @@ demo_name=${PWD##*/} # basename $PWD
 echo '---- compile libsrr ----'
 pushd ../../libsrr
 gcc -fPIC -shared -o libsrr.so srr.c backend_shm.c -lrt -pthread
-gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include/linux -o libsrrjni.so srr.jni.c -lrt -pthread -L. -lsrr
-javac -classpath .. srr.java
+#gcc -fPIC -shared -I/usr/lib/jvm/default/include/ -I/usr/lib/jvm/default/include/linux -o libsrrjni.so srr.jni.c -lrt -pthread -L. -lsrr
+#javac -classpath .. srr.java
 popd
 
 echo '---- compile $demo_name ----'
@@ -15,7 +15,8 @@ gcc -o $demo_name *.c ../../utils/*.c -L../../libsrr -I../../libsrr -I../../util
 
 echo '---- compile servers ----'
 pushd ../../servers
-javac -classpath .. gfx-swing.java
+#javac -classpath .. gfx-swing.java
+xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.vert > text.vert.xxd && xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.frag > text.frag.xxd && xxd -i < gfx-glfw.img.vert > img.vert.xxd && xxd -i < gfx-glfw.img.frag > img.frag.xxd && gcc -o gfx-glfw gfx-glfw.c gfx-glfw_freetype-gl/*.c -L../libsrr -I../libsrr -I../utils -lsrr $(pkg-config --libs --cflags x11 opengl glfw3 glew freetype2 MagickWand) -lpthread -lm && rm *.xxd
 popd
 
 echo '---- launch servers ----'
@@ -24,8 +25,9 @@ PYTHONPATH=../.. LD_LIBRARY_PATH=../../libsrr python -B ../../servers/snd-gstrea
 snd_pid=$!
 PYTHONPATH=../.. LD_LIBRARY_PATH=../../libsrr python -B ../../servers/evt-libevdev.py /$demo_name-evt ../../example.map &
 evt_pid=$!
-mkfifo gfx.fifo
-LD_LIBRARY_PATH=../../libsrr java -cp ../..:../../servers -Djava.library.path=$(pwd)/../../libsrr gfx_swing /$demo_name-gfx &
+#mkfifo gfx.fifo
+#LD_LIBRARY_PATH=../../libsrr java -cp ../..:../../servers -Djava.library.path=$(pwd)/../../libsrr gfx_swing /$demo_name-gfx &
+LD_LIBRARY_PATH=../../libsrr ../../servers/gfx-glfw /$demo_name-gfx &
 gfx_pid=$!
 sleep .5
 

@@ -18,6 +18,9 @@
 #include "gfx-glfw_freetype-gl/shader.h"
 #include "gfx-glfw_freetype-gl/vertex-buffer.h"
 #include <GLFW/glfw3.h>
+#include "srr.h"
+#include "gfx-util.h"
+#include "data-util.h"
 
 static GLuint shader_load_from_src(const char * vert_source, const char * frag_source) {
   GLuint handle = glCreateProgram();
@@ -48,13 +51,15 @@ static bool starts_with(const char * s, const char * start) {
 }
 
 struct shared_amongst_thread_t {
-  GLFWwindow * window;
+  //GLFWwindow * window;
+  const char * srr_path;
+  bool running;
 };
 
 static void * handle_fifo_loop(void * vargp) {
   struct shared_amongst_thread_t * t = vargp;
   char * line = NULL;
-  while(!glfwWindowShouldClose(t->window)) {
+  while(t->running) {
     FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("fopen"); exit(EXIT_FAILURE); }
     size_t alloc = 0;
     ssize_t n;
@@ -65,6 +70,29 @@ static void * handle_fifo_loop(void * vargp) {
     fclose(f);
   }
   free(line);
+  return NULL;
+}
+
+static void * handle_srr_loop(void * vargp) {
+  struct shared_amongst_thread_t * t = vargp;
+
+  // connect
+  printf("GFX starting srr %s\n", t->srr_path);
+  const char * error;
+  struct srr server;
+  error = srr_init(&server, t->srr_path, 8192, true, false, 3); if(error) { printf("srr_init: %s\n", error); exit(EXIT_FAILURE); }
+  struct srr_direct * mem = srr_direct(&server);
+
+  // wait for a message from the client
+  while(1) {
+    error = srr_receive(&server); if(error) { printf("srr_receive: %s\n", error); exit(EXIT_FAILURE); }
+    printf("length: %u\n", mem->length);
+    printf("msg: %s\n", mem->msg);
+    strcpy(mem->msg, "whatever");
+    error = srr_reply(&server, strlen(mem->msg)); if(error) { printf("srr_reply: %s\n", error); exit(EXIT_FAILURE); }
+  }
+
+  error = srr_disconnect(&server); if(error) { printf("srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
   return NULL;
 }
 
@@ -104,7 +132,24 @@ static void glfw_error_callback( int error, const char* description ) {
 }
 
 int main(int argc, char** argv) {
+  // create fifo and in another thread read its messages
+  printf("GFX fifo\n");
+  struct shared_amongst_thread_t t;
+  t.running = true;
+  if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
+  if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
+  pthread_t fifo_thread;
+  pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
+
+  // create srr server in another thread and listen to messages
+  printf("GFX srr\n");
+  if(argc != 2) { fprintf(stderr, "must specify the srr shm name as arg\n"); exit(EXIT_FAILURE); }
+  t.srr_path = argv[1];
+  pthread_t srr_thread;
+  pthread_create(&srr_thread, NULL, handle_srr_loop, &t);
+
   // create window
+  printf("GFX create window\n");
   glfwSetErrorCallback(glfw_error_callback);
   if(!glfwInit()) { fprintf(stderr, "glfwInit\n"); exit(EXIT_FAILURE); }
   glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
@@ -123,6 +168,7 @@ int main(int argc, char** argv) {
   mat4_set_identity(&view);
 
   // font
+  printf("GFX font\n");
   texture_atlas_t * font_atlas = texture_atlas_new(1024, 1024, 1);
   texture_font_t * font = texture_font_new_from_file(font_atlas, 70, "/usr/share/fonts/TTF/DejaVuSans.ttf");
   glGenTextures(1, &font_atlas->id);
@@ -141,6 +187,7 @@ int main(int argc, char** argv) {
   GLuint font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
 
   // images
+  printf("GFX image\n");
   char img_shader_vert[] = {
   #include "img.vert.xxd"
   , 0 };
@@ -158,6 +205,7 @@ int main(int argc, char** argv) {
   vertex_buffer_t * img_buffer = vertex_buffer_new("my_position:3f,my_tex_uv:2f");
 
   // load an image
+  printf("GFX load image\n");
   MagickWandGenesis();
   MagickWand * magick = NewMagickWand();
   if(MagickReadImage(magick, "../demos/zeldaish/princess.png") == MagickFalse) { ExceptionType et; char * e = MagickGetException(magick,&et); fprintf(stderr,"MagickReadImage %s\n",e); MagickRelinquishMemory(e); exit(EXIT_FAILURE); }
@@ -173,14 +221,6 @@ int main(int argc, char** argv) {
   RelinquishMagickMemory(img_blob);
   DestroyMagickWand(magick);
   MagickWandTerminus();
-
-  // create fifo and in another thread read its messages
-  if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
-  if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
-  struct shared_amongst_thread_t t;
-  t.window = window;
-  pthread_t fifo_thread;
-  pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
 
   // main loop
   double t0 = glfwGetTime();
@@ -255,6 +295,7 @@ int main(int argc, char** argv) {
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
+  t.running = false;
 
   // cleanup
   texture_font_delete(font);

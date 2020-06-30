@@ -181,18 +181,18 @@ int main(int argc, char** argv) {
     vec4 black = {{0,0,0,1}};
     vec4 white = {{1,1,1,1}};
     char text[256];
-    snprintf(text, 256, "hello %f", 1 / delta);
+    snprintf(text, 256, "fps %f", 1 / delta);
     {
-      vec2 pen = {{5,100}};
-      font->rendermode = RENDER_OUTLINE_EDGE;
-      font->outline_thickness = 1;
-      add_text(text_buffer, font, text, &black, &pen);
-    }
-    {
-      vec2 pen = {{5,100}};
+      vec2 pen = {{200,100}};
       font->rendermode = RENDER_OUTLINE_NEGATIVE;
       font->outline_thickness = 1;
       add_text(text_buffer, font, text, &white, &pen);
+    }
+    {
+      vec2 pen = {{200,100}};
+      font->rendermode = RENDER_OUTLINE_EDGE;
+      font->outline_thickness = 1;
+      add_text(text_buffer, font, text, &black, &pen);
     }
     // TODO only upload atlas if it changed
     glBindTexture(GL_TEXTURE_2D, font_atlas->id);
@@ -210,7 +210,7 @@ int main(int argc, char** argv) {
     glBindTexture(GL_TEXTURE_2D, my_img);
     int x0  = 10;
     int y0  = 300;
-    int x1  = 300;
+    int x1  = 150;
     int y1  = 10;
     GLuint indices[6] = {0,1,2, 0,2,3};
     struct { float x, y, z; float s, t; } vertices[4] = {

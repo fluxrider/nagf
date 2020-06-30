@@ -95,11 +95,6 @@ int main(int argc, char** argv) {
   pthread_t fifo_thread;
   pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
   */
-  MagickWandGenesis();
-  MagickWand * magick = NewMagickWand();
-  if(MagickReadImage(magick, "../demos/zeldaish/princess.png") == MagickFalse) { ExceptionType et; char * e = MagickGetException(magick,&et); fprintf(stderr,"MagickReadImage %s\n",e); MagickRelinquishMemory(e); exit(EXIT_FAILURE); }
-  DestroyMagickWand(magick);
-  MagickWandTerminus();
 
   glfwSetErrorCallback(glfw_error_callback);
   if(!glfwInit()) { fprintf(stderr, "glfwInit\n"); exit(EXIT_FAILURE); }
@@ -138,9 +133,25 @@ int main(int argc, char** argv) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  GLubyte pixels[4] = {0,255,0,100};
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
   vertex_buffer_t * img_buffer = vertex_buffer_new("my_position:3f,my_tex_uv:2f");
+
+  //GLubyte pixels[4] = {0,255,0,100};
+  //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+  MagickWandGenesis();
+  MagickWand * magick = NewMagickWand();
+  if(MagickReadImage(magick, "../demos/zeldaish/princess.png") == MagickFalse) { ExceptionType et; char * e = MagickGetException(magick,&et); fprintf(stderr,"MagickReadImage %s\n",e); MagickRelinquishMemory(e); exit(EXIT_FAILURE); }
+  MagickBooleanType retval = MagickSetImageFormat(magick, "RGBA");
+  printf("M %d\n", retval == MagickTrue);
+  size_t img_blob_length;
+  unsigned char * img_blob = MagickGetImagesBlob(magick, &img_blob_length);
+  printf("M %p %d\n", img_blob, (int)img_blob_length);
+  Image * image = GetImageFromMagickWand(magick);
+  printf("image %p\n", image);
+  printf("image w:%d h:%d\n", image->columns, image->rows);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->columns, image->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_blob);
+  //MagickDestroyImage(image); // do I need to do this? when is it safe to do so?
+  DestroyMagickWand(magick);
+  MagickWandTerminus();
 
   // main loop
   double t0 = glfwGetTime();
@@ -198,9 +209,9 @@ int main(int argc, char** argv) {
     glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
     glBindTexture(GL_TEXTURE_2D, my_img);
     int x0  = 10;
-    int y0  = 10;
-    int x1  = 150;
-    int y1  = 300;
+    int y0  = 300;
+    int x1  = 300;
+    int y1  = 10;
     GLuint indices[6] = {0,1,2, 0,2,3};
     struct { float x, y, z; float s, t; } vertices[4] = {
       { x0,y0,0, 0,0 },

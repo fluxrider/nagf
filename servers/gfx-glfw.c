@@ -19,20 +19,19 @@
 #include "gfx-glfw_freetype-gl/vertex-buffer.h"
 #include <GLFW/glfw3.h>
 
-bool starts_with(const char * s, const char * start) {
+static bool starts_with(const char * s, const char * start) {
   return strncmp(start, s, strlen(start)) == 0;
 }
 
 struct shared_amongst_thread_t {
-  const char * server_fifo_path;
+  GLFWwindow * window;
 };
 
-/*
-void * handle_fifo_loop(void * vargp) {
+static void * handle_fifo_loop(void * vargp) {
   struct shared_amongst_thread_t * t = vargp;
-  while(t->running) {
-    FILE * f = fopen(t->server_fifo_path, "r"); if(!f) { perror("fopen"); exit(EXIT_FAILURE); }
-    char * line = NULL;
+  char * line = NULL;
+  while(!glfwWindowShouldClose(t->window)) {
+    FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("fopen"); exit(EXIT_FAILURE); }
     size_t alloc = 0;
     ssize_t n;
     while((n = getline(&line, &alloc, f)) != -1) {
@@ -40,11 +39,10 @@ void * handle_fifo_loop(void * vargp) {
       //if(starts_with(line, "title ")) TODO;
     }
     fclose(f);
-    free(line);
   }
+  free(line);
   return NULL;
 }
-*/
 
 // --------------------------------------------------------------- add_text ---
 static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char * text, vec4 * color, vec2 * pen) {
@@ -84,11 +82,9 @@ static void glfw_error_callback( int error, const char* description ) {
 int main(int argc, char** argv) {
   // create fifo and in another thread read its messages
   /*
-  const char * server_fifo_path = "gfx-x11-cairo.fifo";
   if(unlink(server_fifo_path) == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
   if(mkfifo(server_fifo_path, S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
   struct shared_amongst_thread_t t;
-  t.server_fifo_path = server_fifo_path;
   t.display = display;
   t.window = window;
   t.running = true;
@@ -149,9 +145,10 @@ int main(int argc, char** argv) {
   printf("image %p\n", image);
   printf("image w:%d h:%d\n", image->columns, image->rows);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->columns, image->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_blob);
-  //MagickDestroyImage(image); // do I need to do this? when is it safe to do so?
+  RelinquishMagickMemory(img_blob);
   DestroyMagickWand(magick);
   MagickWandTerminus();
+
 
   // main loop
   double t0 = glfwGetTime();
@@ -222,7 +219,7 @@ int main(int argc, char** argv) {
     vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
     vertex_buffer_render(img_buffer, GL_TRIANGLES);
     vertex_buffer_clear(img_buffer);
-    
+
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
@@ -233,7 +230,6 @@ int main(int argc, char** argv) {
   vertex_buffer_delete(img_buffer);
   glDeleteTextures(1, &font_atlas->id);
   texture_atlas_delete(font_atlas);
-  
   //if(unlink(server_fifo_path) == -1) { perror("unlink"); exit(EXIT_FAILURE); }
   glfwDestroyWindow(window);
   glfwTerminate();

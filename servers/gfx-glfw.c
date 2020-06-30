@@ -127,7 +127,20 @@ int main(int argc, char** argv) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   vertex_buffer_t * text_buffer = vertex_buffer_new("vertex:3f,tex_coord:2f,color:4f");
-  GLuint font_shader = shader_load("gfx-glfw_freetype-gl/v3f-t2f-c4f.vert", "gfx-glfw_freetype-gl/v3f-t2f-c4f.frag"); // TODO relative path to CWD...
+  GLuint font_shader = shader_load("gfx-glfw_freetype-gl/v3f-t2f-c4f.vert", "gfx-glfw_freetype-gl/v3f-t2f-c4f.frag"); // TODO relative path to CWD... nah, just embed them
+
+  // images
+  GLuint img_shader = shader_load("gfx-glfw_freetype-gl/tmp.vert", "gfx-glfw_freetype-gl/tmp.frag"); // TODO embed them
+  GLuint my_img;
+  glGenTextures(1, &my_img);
+  glBindTexture(GL_TEXTURE_2D, my_img);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  GLubyte pixels[4] = {0,255,0,100};
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+  vertex_buffer_t * img_buffer = vertex_buffer_new("my_position:3f,my_tex_uv:2f");
 
   // main loop
   double t0 = glfwGetTime();
@@ -148,10 +161,11 @@ int main(int argc, char** argv) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(font_shader);
-    glUniform1i(glGetUniformLocation(font_shader, "texture"), 0); // what is this one?
+    glUniform1i(glGetUniformLocation(font_shader, "texture"), 0);
     glUniformMatrix4fv(glGetUniformLocation(font_shader, "model"), 1, 0, model.data);
     glUniformMatrix4fv(glGetUniformLocation(font_shader, "view"), 1, 0, view.data);
     glUniformMatrix4fv(glGetUniformLocation(font_shader, "projection"), 1, 0, projection.data);
+    glBindTexture(GL_TEXTURE_2D, font_atlas->id);
     
     vec4 black = {{0,0,0,1}};
     vec4 white = {{1,1,1,1}};
@@ -175,6 +189,29 @@ int main(int argc, char** argv) {
     vertex_buffer_render(text_buffer, GL_TRIANGLES);
     vertex_buffer_clear(text_buffer);
     
+    // image
+    glUseProgram(img_shader);
+    glUniform1i(glGetUniformLocation(img_shader, "my_sampler"), 0);
+    glEnable(GL_TEXTURE_2D);
+    glActiveTexture(GL_TEXTURE0);
+    glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_model"), 1, 0, model.data);
+    glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
+    glBindTexture(GL_TEXTURE_2D, my_img);
+    int x0  = 10;
+    int y0  = 10;
+    int x1  = 150;
+    int y1  = 300;
+    GLuint indices[6] = {0,1,2, 0,2,3};
+    struct { float x, y, z; float s, t; } vertices[4] = {
+      { x0,y0,0, 0,0 },
+      { x0,y1,0, 0,1 },
+      { x1,y1,0, 1,1 },
+      { x1,y0,0, 1,0 }
+    };
+    vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+    vertex_buffer_render(img_buffer, GL_TRIANGLES);
+    vertex_buffer_clear(img_buffer);
+    
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
@@ -182,6 +219,7 @@ int main(int argc, char** argv) {
   // cleanup
   texture_font_delete(font);
   vertex_buffer_delete(text_buffer);
+  vertex_buffer_delete(img_buffer);
   glDeleteTextures(1, &font_atlas->id);
   texture_atlas_delete(font_atlas);
   

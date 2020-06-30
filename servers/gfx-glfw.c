@@ -104,18 +104,7 @@ static void glfw_error_callback( int error, const char* description ) {
 }
 
 int main(int argc, char** argv) {
-  // create fifo and in another thread read its messages
-  /*
-  if(unlink(server_fifo_path) == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
-  if(mkfifo(server_fifo_path, S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
-  struct shared_amongst_thread_t t;
-  t.display = display;
-  t.window = window;
-  t.running = true;
-  pthread_t fifo_thread;
-  pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
-  */
-
+  // create window
   glfwSetErrorCallback(glfw_error_callback);
   if(!glfwInit()) { fprintf(stderr, "glfwInit\n"); exit(EXIT_FAILURE); }
   glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
@@ -127,6 +116,7 @@ int main(int argc, char** argv) {
   GLenum err = glewInit(); if(GLEW_OK != err) { fprintf(stderr, "glewInit() %s\n", glewGetErrorString(err)); exit(EXIT_FAILURE); }
   glfwShowWindow(window);
 
+  // matrices
   mat4 model, view, projection;
   mat4_set_identity(&projection);
   mat4_set_identity(&model);
@@ -167,8 +157,7 @@ int main(int argc, char** argv) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   vertex_buffer_t * img_buffer = vertex_buffer_new("my_position:3f,my_tex_uv:2f");
 
-  //GLubyte pixels[4] = {0,255,0,100};
-  //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+  // load an image
   MagickWandGenesis();
   MagickWand * magick = NewMagickWand();
   if(MagickReadImage(magick, "../demos/zeldaish/princess.png") == MagickFalse) { ExceptionType et; char * e = MagickGetException(magick,&et); fprintf(stderr,"MagickReadImage %s\n",e); MagickRelinquishMemory(e); exit(EXIT_FAILURE); }
@@ -184,6 +173,14 @@ int main(int argc, char** argv) {
   RelinquishMagickMemory(img_blob);
   DestroyMagickWand(magick);
   MagickWandTerminus();
+
+  // create fifo and in another thread read its messages
+  if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
+  if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
+  struct shared_amongst_thread_t t;
+  t.window = window;
+  pthread_t fifo_thread;
+  pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
 
   // main loop
   double t0 = glfwGetTime();
@@ -265,7 +262,7 @@ int main(int argc, char** argv) {
   vertex_buffer_delete(img_buffer);
   glDeleteTextures(1, &font_atlas->id);
   texture_atlas_delete(font_atlas);
-  //if(unlink(server_fifo_path) == -1) { perror("unlink"); exit(EXIT_FAILURE); }
+  if(unlink("gfx.fifo") == -1) { perror("unlink"); exit(EXIT_FAILURE); }
   glfwDestroyWindow(window);
   glfwTerminate();
   return EXIT_SUCCESS;

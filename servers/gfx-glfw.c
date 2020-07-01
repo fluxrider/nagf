@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <unistd.h>
+#include <semaphore.h>
 #include <pthread.h>
 #include <string.h>
 #include <MagickWand/MagickWand.h>
@@ -21,6 +22,10 @@
 #include "srr.h"
 #include "gfx-util.h"
 #include "data-util.h"
+
+static void glfw_error_callback(int error, const char * description) {
+  fprintf(stderr, "GFX error: glfw_error_callback %s\n", description); exit(EXIT_FAILURE);
+}
 
 struct res {
   uint8_t type;
@@ -62,7 +67,7 @@ static GLuint shader_load_from_src(const char * vert_source, const char * frag_s
   if(!link_status) {
     GLchar messages[256];
     glGetProgramInfoLog(handle, sizeof(messages), 0, messages);
-    fprintf(stderr, "%s\n", messages);
+    fprintf(stderr, "GFX error: %s\n", messages);
     exit(1);
   }
   return handle;
@@ -77,29 +82,76 @@ static bool str_equals(const char * s, const char * s2) {
 }
 
 struct shared_amongst_thread_t {
-  //GLFWwindow * window;
+  GLFWwindow * window;
   const char * srr_path;
   bool running;
   bool focused;
   int W;
   int H;
+  int preferred_W;
+  int preferred_H;
   struct dict cache;
-  pthread_mutex_t cache_mutex; 
+  pthread_mutex_t cache_mutex;
+  sem_t flush_pre;
+  sem_t flush_post;
+  sem_t should_quit;
+  bool first_flush;
 };
 
 static void * handle_fifo_loop(void * vargp) {
+  printf("GFX fifo thread\n");
   struct shared_amongst_thread_t * t = vargp;
   char * line = NULL;
   while(t->running) {
-    FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("fopen"); exit(EXIT_FAILURE); }
+    FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("GFX error: fopen"); exit(EXIT_FAILURE); }
     size_t alloc = 0;
     ssize_t n;
     while((n = getline(&line, &alloc, f)) != -1) {
       if(line[n - 1] == '\n') line[n - 1] = '\0';
       if(str_equals(line, "flush")) {
+        //printf("GFX fifo flush\n");
+        // finish setting up window on first flush
+        if(t->first_flush) {
+          t->first_flush = false;
+          // show window
+          bool no_pref = t->preferred_W == 0;
+          // TODO stretch window if(no_pref) frame.setExtendedState(JFrame.MAXIMIZED_BOTH); 
+          glfwShowWindow(t->window); // TODO This function must only be called from the main thread (for portability).
+        }
+        // on flush, stop handling any more messages until srr thread completes the flush
+        if(sem_post(&t->flush_pre) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
+        if(sem_wait(&t->flush_post) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
       } else if(str_equals(line, "hq")) {
+        printf("GFX fifo hq\n");
       } else if(starts_with(line, "title ")) {
+        printf("GFX fifo title\n");
+        glfwSetWindowTitle(t->window, &line[6]); // TODO This function must only be called from the main thread (for portability).
       } else if(starts_with(line, "window ")) {
+        printf("GFX fifo window\n");
+        char * line_sep = &line[7];
+        t->W = strtol(strsep(&line_sep, " "), NULL, 10);
+        t->H = strtol(strsep(&line_sep, " "), NULL, 10);
+        const char * token = strsep(&line_sep, " ");
+        if(token) {
+          t->preferred_W = strtol(token, NULL, 10);
+          t->preferred_H = strtol(strsep(&line_sep, " "), NULL, 10);
+        } else {
+          t->preferred_W = 0;
+          t->preferred_H = 0;
+        }
+        // create window
+        glfwSetErrorCallback(glfw_error_callback);
+        printf("GFX glfwInit\n");
+        if(!glfwInit()) { fprintf(stderr, "GFX error: glfwInit\n"); exit(EXIT_FAILURE); } // // TODO This function must only be called from the main thread (for portability).
+        printf("GFX create window\n");
+        glfwWindowHint(GLFW_VISIBLE, GL_FALSE); // TODO This function must only be called from the main thread (for portability).
+        glfwWindowHint(GLFW_RESIZABLE, GL_TRUE); // TODO This function must only be called from the main thread (for portability).
+        t->window = glfwCreateWindow(t->W, t->H, "", NULL, NULL); if(!t->window) { fprintf(stderr, "GFX error: glfwCreateWindow\n"); exit(EXIT_FAILURE); } // TODO This function must only be called from the main thread (for portability).
+        glfwMakeContextCurrent(t->window);
+        glfwSwapInterval(0); // no-vsync
+        printf("GFX glew\n");
+        glewExperimental = GL_TRUE;
+        GLenum err = glewInit(); if(GLEW_OK != err) { fprintf(stderr, "GFX error: glewInit() %s\n", glewGetErrorString(err)); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "cache ")) {
       } else if(starts_with(line, "draw ")) {
       } else if(starts_with(line, "text ")) {
@@ -119,7 +171,7 @@ static void * handle_srr_loop(void * vargp) {
   printf("GFX starting srr %s\n", t->srr_path);
   const char * error;
   struct srr server;
-  error = srr_init(&server, t->srr_path, 8192, true, false, 3); if(error) { printf("srr_init: %s\n", error); exit(EXIT_FAILURE); }
+  error = srr_init(&server, t->srr_path, 8192, true, false, 3); if(error) { printf("GFX error: srr_init: %s\n", error); exit(EXIT_FAILURE); }
   struct srr_direct * mem = srr_direct(&server);
 
   // wait for a message from the client
@@ -128,7 +180,8 @@ static void * handle_srr_loop(void * vargp) {
   double delta_time = 0;
   while(1) {
     // receive
-    error = srr_receive(&server); if(error) { printf("srr_receive: %s\n", error); exit(EXIT_FAILURE); }
+    error = srr_receive(&server); if(error) { printf("GFX error: srr_receive: %s\n", error); exit(EXIT_FAILURE); }
+    //printf("GFX srr sync\n");
     // copy message, because the reply will overwrite it as we parse
     memcpy(_buffer, mem->msg, mem->length);
     // build reply
@@ -137,24 +190,19 @@ static void * handle_srr_loop(void * vargp) {
     mem->msg[i++] = !t->running;
     *((int *)(&mem->msg[i])) = t->W; i+=4;
     *((int *)(&mem->msg[i])) = t->H; i+=4;
-/*
-                // let fifo drain until flush to ensure all drawing have been done
-                flush_pre.acquire();
-                // flush our drawing to the screen
-                if(!quitting) {
-                  synchronized(backbuffer_mutex) {
-                    synchronized(frontbuffer_mutex) { _g.drawImage(backbuffer, 0, 0, null); }
-                  }
-                  panel.repaint();
-                  Thread.yield();
-                }
-                // delta_time
-                long t1 = System.currentTimeMillis();
-                delta_time = t1 - t0;
-                t0 = t1;
-                // let fifo resume
-                flush_post.release();
-*/
+    // let fifo drain until flush to ensure all drawing have been done
+    if(sem_wait(&t->flush_pre) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
+    // flush our drawing to the screen
+    if(t->running) {
+      glfwSwapBuffers(t->window);
+      glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
+    }
+    // delta_time
+    double t1 = glfwGetTime();
+    delta_time = t1 - t0;
+    t0 = t1;
+    // let fifo resume
+    if(sem_post(&t->flush_post) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
     // parse commands
     char * buffer = _buffer;
     char * command;
@@ -164,7 +212,7 @@ static void * handle_srr_loop(void * vargp) {
         *((int *)(&mem->msg[i])) = (int)(delta_time * 1000); i+=4;
       } else if(str_equals(command, "stat")) {
         const char * path = strsep(&buffer, " ");
-        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
         if(dict_has(&t->cache, path)) {
           struct res * res = dict_get(&t->cache, path);
           if(res->type == GFX_STAT_ERR) {
@@ -185,12 +233,12 @@ static void * handle_srr_loop(void * vargp) {
         } else {
           mem->msg[i++] = GFX_STAT_ERR; mem->msg[i++] = 'E'; mem->msg[i++] = ' '; mem->msg[i++] = ' ';
         }
-        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(str_equals(command, "statall")) {
         // check the state of everything in the cache to do a cummulative progress
         int p = 0;
         bool progress_error = false;
-        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
         for(size_t index = 0; !progress_error && index < t->cache.size; index++) {
           struct res * res = dict_get_by_index(&t->cache, index);
           if(!res) continue;
@@ -207,14 +255,16 @@ static void * handle_srr_loop(void * vargp) {
           mem->msg[i++] = GFX_STAT_ALL;
           *((int *)(&mem->msg[i])) = ((t->cache.size == 0)? 0 : p / t->cache.size); i+=4;
         }
-        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       }
     }
     // reply
-    error = srr_reply(&server, i); if(error) { fprintf(stderr, "srr_reply: %s\n", error); exit(EXIT_FAILURE); }
+    error = srr_reply(&server, i); if(error) { fprintf(stderr, "GFX error: srr_reply: %s\n", error); exit(EXIT_FAILURE); }
+    if(!t->running) break;
   }
 
-  error = srr_disconnect(&server); if(error) { fprintf(stderr, "srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
+  error = srr_disconnect(&server); if(error) { fprintf(stderr, "GFX error: srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
+  if(sem_post(&t->should_quit) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
   return NULL;
 }
 
@@ -249,43 +299,32 @@ static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char
   }
 }
 
-static void glfw_error_callback( int error, const char* description ) {
-  fputs( description, stderr );
-}
-
 int main(int argc, char** argv) {
-  struct shared_amongst_thread_t t;
-  t.running = true;
-  dict_init(&t.cache, sizeof(struct res), true, true);
-  if(pthread_mutex_init(&t.cache_mutex, NULL) != 0) { fprintf(stderr, "pthread_mutex_init\n"); exit(EXIT_FAILURE); }
+
+  struct shared_amongst_thread_t * t = malloc(sizeof(struct shared_amongst_thread_t)); // place it on heap, as it is unclear is threads can properly access stack var
+  t->running = true;
+  t->first_flush = true;
+  dict_init(&t->cache, sizeof(struct res), true, true);
+  if(pthread_mutex_init(&t->cache_mutex, NULL) != 0) { fprintf(stderr, "GFX error: pthread_mutex_init\n"); exit(EXIT_FAILURE); }
+  if(sem_init(&t->flush_pre, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
+  if(sem_init(&t->flush_post, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
+  if(sem_init(&t->should_quit, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
 
   // create fifo and in another thread read its messages
   printf("GFX fifo\n");
-  if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
-  if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
+  if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("GFX error: unlink"); exit(EXIT_FAILURE); }
+  if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("GFX error: mkfifo"); exit(EXIT_FAILURE); }
   pthread_t fifo_thread;
-  pthread_create(&fifo_thread, NULL, handle_fifo_loop, &t);
+  pthread_create(&fifo_thread, NULL, handle_fifo_loop, t);
 
   // create srr server in another thread and listen to messages
   printf("GFX srr\n");
-  if(argc != 2) { fprintf(stderr, "must specify the srr shm name as arg\n"); exit(EXIT_FAILURE); }
-  t.srr_path = argv[1];
+  if(argc != 2) { fprintf(stderr, "GFX error: must specify the srr shm name as arg\n"); exit(EXIT_FAILURE); }
+  t->srr_path = argv[1];
   pthread_t srr_thread;
-  pthread_create(&srr_thread, NULL, handle_srr_loop, &t);
+  pthread_create(&srr_thread, NULL, handle_srr_loop, t);
 
-  // create window
-  printf("GFX create window\n");
-  glfwSetErrorCallback(glfw_error_callback);
-  if(!glfwInit()) { fprintf(stderr, "glfwInit\n"); exit(EXIT_FAILURE); }
-  glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
-  glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
-  GLFWwindow * window = glfwCreateWindow(800, 450, argv[0], NULL, NULL); if(!window) { fprintf(stderr, "glfwCreateWindow\n"); exit(EXIT_FAILURE); }
-  glfwMakeContextCurrent(window);
-  glfwSwapInterval(0); // no-vsync
-  glewExperimental = GL_TRUE;
-  GLenum err = glewInit(); if(GLEW_OK != err) { fprintf(stderr, "glewInit() %s\n", glewGetErrorString(err)); exit(EXIT_FAILURE); }
-  glfwShowWindow(window);
-
+  /*
   // matrices
   mat4 model, view, projection;
   mat4_set_identity(&projection);
@@ -346,16 +385,10 @@ int main(int argc, char** argv) {
   RelinquishMagickMemory(img_blob);
   DestroyMagickWand(magick);
   MagickWandTerminus();
-
-  // main loop
-  double t0 = glfwGetTime();
-  while(!glfwWindowShouldClose(window)) {
-    double t1 = glfwGetTime();
-    double delta = t1 - t0;
-    t0 = t1;
-    
+*/ 
+ /*
     int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize(t->window, &width, &height);
     glViewport(0, 0, width, height);
     mat4_set_orthographic(&projection, 0, width, 0, height, -1, 1);
 
@@ -417,21 +450,30 @@ int main(int argc, char** argv) {
     vertex_buffer_render(img_buffer, GL_TRIANGLES);
     vertex_buffer_clear(img_buffer);
 
-    glfwSwapBuffers(window);
+    glfwSwapBuffers(t->window);
     glfwPollEvents();
   }
-  t.running = false;
+  t->running = false;
+  // TODO kill threads
+*/
+
+  // wait for signal to quit
+  if(sem_wait(&t->should_quit) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
 
   // cleanup
-  texture_font_delete(font);
-  vertex_buffer_delete(text_buffer);
-  vertex_buffer_delete(img_buffer);
-  glDeleteTextures(1, &font_atlas->id);
-  texture_atlas_delete(font_atlas);
-  if(unlink("gfx.fifo") == -1) { perror("unlink"); exit(EXIT_FAILURE); }
-  glfwDestroyWindow(window);
+  //texture_font_delete(font);
+  //vertex_buffer_delete(text_buffer);
+  //vertex_buffer_delete(img_buffer);
+  //glDeleteTextures(1, &font_atlas->id);
+  //texture_atlas_delete(font_atlas);
+  if(unlink("gfx.fifo") == -1) { perror("GFX error: unlink"); exit(EXIT_FAILURE); }
+  glfwDestroyWindow(t->window);
   glfwTerminate();
-  dict_free(&t.cache);
-  pthread_mutex_destroy(&t.cache_mutex);
+  dict_free(&t->cache);
+  pthread_mutex_destroy(&t->cache_mutex);
+  if(sem_destroy(&t->flush_pre) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
+  if(sem_destroy(&t->flush_post) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
+  if(sem_destroy(&t->should_quit) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
+  free(t);
   return EXIT_SUCCESS;
 }

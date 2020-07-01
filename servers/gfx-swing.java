@@ -544,49 +544,31 @@ class gfx_swing {
             srr.msg.put(quitting? (byte)1 : (byte)0);
             srr.msg.putInt(W);
             srr.msg.putInt(H);
+            // let fifo drain until flush to ensure all drawing have been done
+            flush_pre.acquire();
+            // flush our drawing to the screen
+            if(!quitting) {
+              synchronized(backbuffer_mutex) {
+                synchronized(frontbuffer_mutex) { _g.drawImage(backbuffer, 0, 0, null); }
+              }
+              panel.repaint();
+              Thread.yield();
+            }
+            // delta_time
+            long t1 = System.currentTimeMillis();
+            delta_time = t1 - t0;
+            t0 = t1;
+            // let fifo resume
+            flush_post.release();
             int i = 0;
             while(i < sync.length) {
               String command = sync[i++];
-              if(command.equals("flush")) {
-                // let fifo drain until flush to ensure all drawing have been done
-                flush_pre.acquire();
-                // flush our drawing to the screen
-                if(!quitting) {
-                  synchronized(backbuffer_mutex) {
-                    synchronized(frontbuffer_mutex) { _g.drawImage(backbuffer, 0, 0, null); }
-                  }
-                  panel.repaint();
-                  Thread.yield();
-                }
-                // delta_time
-                long t1 = System.currentTimeMillis();
-                delta_time = t1 - t0;
-                t0 = t1;
-                // let fifo resume
-                flush_post.release();
-              } else if(command.equals("delta")) {
+              if(command.equals("delta")) {
                 srr.msg.put(GFX_STAT_DLT);
                 srr.msg.putInt((int)delta_time);
               } else if(command.equals("stat")) {
                 String path = sync[i++];
                 Object res = cache.get(path);
-                if(res == null) {
-                  // drain fifo (but not past a flush) and try again.
-                  // ideally, user would always flush before doing stats
-                  // however, on first frame, this scenario is legit,
-                  // so before returning an error, we will give the fifo thread a chance,
-                  // but we'll print a warning because of the horrid lag.
-                  long max_wait = 500;
-                  while(max_wait > 0 && flush_post.availablePermits() == 0) {
-                    System.out.println("GFX Warning: waiting for fifo to drain for stat.");
-                    Thread.sleep(10);
-                    res = cache.get(path);
-                    if(res != null) break;
-                    max_wait -= 10;
-                  }
-                  if(max_wait <= 0) System.out.println("GFX Warning: reached max waiting period");
-                  else System.out.println("GFX Warning: had to wait " + (500 - max_wait) + " ms.");
-                }
                 if(res == null) { res = new RuntimeException("unknown resource"); }
                 if(res instanceof Exception) {
                   reply_stat_error(srr, (Exception)res);
@@ -608,10 +590,12 @@ class gfx_swing {
               } else if(command.equals("statall")) {
                 // check the state of everything in the cache to do a cummulative progress
                 int p = 0;
+                boolean error = false;
                 for(Object res : cache.values()) {
                   if(res == null) continue;
                   else if(res instanceof Exception) {
                     reply_stat_error(srr, (Exception)res);
+                    error = true;
                     break;
                   }
                   else if(res instanceof Progress) {
@@ -620,8 +604,10 @@ class gfx_swing {
                     p += 1000;
                   }
                 }
-                srr.msg.put(GFX_STAT_ALL);
-                srr.msg.putInt(p / cache.size());
+                if(!error) {
+                  srr.msg.put(GFX_STAT_ALL);
+                  srr.msg.putInt(p / cache.size());
+                }
               } else {
                 throw new RuntimeException("unknown command: " + command);
               }

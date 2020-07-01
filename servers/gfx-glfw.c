@@ -99,9 +99,11 @@ struct shared_amongst_thread_t {
 };
 
 static void * handle_fifo_loop(void * vargp) {
+  // this is the 'main' thread as far as glfw goes
   printf("GFX fifo thread\n");
   struct shared_amongst_thread_t * t = vargp;
   char * line = NULL;
+  char * title = NULL;
   while(t->running) {
     FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("GFX error: fopen"); exit(EXIT_FAILURE); }
     size_t alloc = 0;
@@ -121,11 +123,19 @@ static void * handle_fifo_loop(void * vargp) {
         // on flush, stop handling any more messages until srr thread completes the flush
         if(sem_post(&t->flush_pre) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
         if(sem_wait(&t->flush_post) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
+        // flush our drawing to the screen
+        if(t->running) {
+          glfwSwapBuffers(t->window);
+          glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
+          glClearColor(.5, .5, .5, 1);
+          glClear(GL_COLOR_BUFFER_BIT);
+        }
       } else if(str_equals(line, "hq")) {
         printf("GFX fifo hq\n");
       } else if(starts_with(line, "title ")) {
         printf("GFX fifo title\n");
-        glfwSetWindowTitle(t->window, &line[6]); // TODO This function must only be called from the main thread (for portability).
+        if(t->window) glfwSetWindowTitle(t->window, &line[6]); // TODO This function must only be called from the main thread (for portability).
+        else title = strdup(&line[6]);
       } else if(starts_with(line, "window ")) {
         printf("GFX fifo window\n");
         char * line_sep = &line[7];
@@ -146,7 +156,7 @@ static void * handle_fifo_loop(void * vargp) {
         printf("GFX create window\n");
         glfwWindowHint(GLFW_VISIBLE, GL_FALSE); // TODO This function must only be called from the main thread (for portability).
         glfwWindowHint(GLFW_RESIZABLE, GL_TRUE); // TODO This function must only be called from the main thread (for portability).
-        t->window = glfwCreateWindow(t->W, t->H, "", NULL, NULL); if(!t->window) { fprintf(stderr, "GFX error: glfwCreateWindow\n"); exit(EXIT_FAILURE); } // TODO This function must only be called from the main thread (for portability).
+        t->window = glfwCreateWindow(t->W, t->H, title? title : NULL, NULL, NULL); if(!t->window) { fprintf(stderr, "GFX error: glfwCreateWindow\n"); exit(EXIT_FAILURE); } // TODO This function must only be called from the main thread (for portability).
         glfwMakeContextCurrent(t->window);
         glfwSwapInterval(0); // no-vsync
         printf("GFX glew\n");
@@ -161,6 +171,8 @@ static void * handle_fifo_loop(void * vargp) {
     fclose(f);
   }
   free(line);
+  free(title);
+  if(sem_post(&t->should_quit) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
   return NULL;
 }
 
@@ -186,17 +198,13 @@ static void * handle_srr_loop(void * vargp) {
     memcpy(_buffer, mem->msg, mem->length);
     // build reply
     int i = 0;
+    if(t->window) t->running &= !glfwWindowShouldClose(t->window);
     mem->msg[i++] = t->focused;
     mem->msg[i++] = !t->running;
     *((int *)(&mem->msg[i])) = t->W; i+=4;
     *((int *)(&mem->msg[i])) = t->H; i+=4;
     // let fifo drain until flush to ensure all drawing have been done
     if(sem_wait(&t->flush_pre) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
-    // flush our drawing to the screen
-    if(t->running) {
-      glfwSwapBuffers(t->window);
-      glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
-    }
     // delta_time
     double t1 = glfwGetTime();
     delta_time = t1 - t0;
@@ -300,8 +308,8 @@ static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char
 }
 
 int main(int argc, char** argv) {
-
   struct shared_amongst_thread_t * t = malloc(sizeof(struct shared_amongst_thread_t)); // place it on heap, as it is unclear is threads can properly access stack var
+  t->window = NULL;
   t->running = true;
   t->first_flush = true;
   dict_init(&t->cache, sizeof(struct res), true, true);
@@ -392,8 +400,6 @@ int main(int argc, char** argv) {
     glViewport(0, 0, width, height);
     mat4_set_orthographic(&projection, 0, width, 0, height, -1, 1);
 
-    glClearColor(.5, .5, .5, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

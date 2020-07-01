@@ -183,7 +183,7 @@ void main(int argc, char * argv[]) {
     dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center center 1 noclip 0 ffffff 000000 1 %.2f\n", x, y, w, h, progress / 1000.0);
     // flush
     dprintf(gfx, "flush\n");
-    sprintf(gmm->msg, "flush statall"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    sprintf(gmm->msg, "statall"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
     // I want to ensure we see the 100% frame, so break after flush
     if(progress == 1000) break;
     // read progress
@@ -683,7 +683,7 @@ void main(int argc, char * argv[]) {
 
     // flush
     dprintf(gfx, "flush\n");
-    sprintf(gmm->msg, "flush delta"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
+    sprintf(gmm->msg, "delta"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
     int i = 0;
     focused = gmm->msg[i++];
     running &= !gmm->msg[i++];

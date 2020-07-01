@@ -6,5 +6,6 @@ enum {
   GFX_STAT_IMG = 1,
   GFX_STAT_FNT = 2,
   GFX_STAT_DLT = 3,
-  GFX_STAT_ALL = 4
+  GFX_STAT_ALL = 4,
+  GFX_STAT_COUNT = 5
 };

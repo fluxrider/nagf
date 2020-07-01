@@ -22,6 +22,28 @@
 #include "gfx-util.h"
 #include "data-util.h"
 
+struct res {
+  uint8_t type;
+  union {
+    struct {
+      texture_atlas_t * atlas;
+      texture_font_t * font;
+    };
+    struct {
+      double progress;
+      uint8_t progress_type;
+    };
+    struct {
+      GLuint texture;
+      int w;
+      int h;
+    };
+    struct {
+      char error[3];
+    };
+  };
+};
+
 static GLuint shader_load_from_src(const char * vert_source, const char * frag_source) {
   GLuint handle = glCreateProgram();
 
@@ -50,10 +72,19 @@ static bool starts_with(const char * s, const char * start) {
   return strncmp(start, s, strlen(start)) == 0;
 }
 
+static bool str_equals(const char * s, const char * s2) {
+  return strcmp(s, s2) == 0;
+}
+
 struct shared_amongst_thread_t {
   //GLFWwindow * window;
   const char * srr_path;
   bool running;
+  bool focused;
+  int W;
+  int H;
+  struct dict cache;
+  pthread_mutex_t cache_mutex; 
 };
 
 static void * handle_fifo_loop(void * vargp) {
@@ -65,7 +96,15 @@ static void * handle_fifo_loop(void * vargp) {
     ssize_t n;
     while((n = getline(&line, &alloc, f)) != -1) {
       if(line[n - 1] == '\n') line[n - 1] = '\0';
-      //if(starts_with(line, "title ")) TODO;
+      if(str_equals(line, "flush")) {
+      } else if(str_equals(line, "hq")) {
+      } else if(starts_with(line, "title ")) {
+      } else if(starts_with(line, "window ")) {
+      } else if(starts_with(line, "cache ")) {
+      } else if(starts_with(line, "draw ")) {
+      } else if(starts_with(line, "text ")) {
+      } else if(starts_with(line, "fill ")) {
+      }
     }
     fclose(f);
   }
@@ -84,15 +123,98 @@ static void * handle_srr_loop(void * vargp) {
   struct srr_direct * mem = srr_direct(&server);
 
   // wait for a message from the client
+  char _buffer[8192];
+  double t0 = glfwGetTime();
+  double delta_time = 0;
   while(1) {
+    // receive
     error = srr_receive(&server); if(error) { printf("srr_receive: %s\n", error); exit(EXIT_FAILURE); }
-    printf("length: %u\n", mem->length);
-    printf("msg: %s\n", mem->msg);
-    strcpy(mem->msg, "whatever");
-    error = srr_reply(&server, strlen(mem->msg)); if(error) { printf("srr_reply: %s\n", error); exit(EXIT_FAILURE); }
+    // copy message, because the reply will overwrite it as we parse
+    memcpy(_buffer, mem->msg, mem->length);
+    // build reply
+    int i = 0;
+    mem->msg[i++] = t->focused;
+    mem->msg[i++] = !t->running;
+    *((int *)(&mem->msg[i])) = t->W; i+=4;
+    *((int *)(&mem->msg[i])) = t->H; i+=4;
+/*
+                // let fifo drain until flush to ensure all drawing have been done
+                flush_pre.acquire();
+                // flush our drawing to the screen
+                if(!quitting) {
+                  synchronized(backbuffer_mutex) {
+                    synchronized(frontbuffer_mutex) { _g.drawImage(backbuffer, 0, 0, null); }
+                  }
+                  panel.repaint();
+                  Thread.yield();
+                }
+                // delta_time
+                long t1 = System.currentTimeMillis();
+                delta_time = t1 - t0;
+                t0 = t1;
+                // let fifo resume
+                flush_post.release();
+*/
+    // parse commands
+    char * buffer = _buffer;
+    char * command;
+    while(command = strsep(&buffer, " ")) {
+      if(str_equals(command, "delta")) {
+        mem->msg[i++] = GFX_STAT_DLT;
+        *((int *)(&mem->msg[i])) = (int)(delta_time * 1000); i+=4;
+      } else if(str_equals(command, "stat")) {
+        const char * path = strsep(&buffer, " ");
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(dict_has(&t->cache, path)) {
+          struct res * res = dict_get(&t->cache, path);
+          if(res->type == GFX_STAT_ERR) {
+            mem->msg[i++] = GFX_STAT_ERR; mem->msg[i++] = res->error[0]; mem->msg[i++] = res->error[1]; mem->msg[i++] = res->error[2];
+          } else if(res->type == GFX_STAT_IMG) {
+            mem->msg[i++] = GFX_STAT_IMG;
+            *((int *)(&mem->msg[i])) = res->w; i+=4;
+            *((int *)(&mem->msg[i])) = res->h; i+=4;
+          } else if(res->type == GFX_STAT_FNT) {
+            mem->msg[i++] = GFX_STAT_FNT;
+            *((int *)(&mem->msg[i])) = 1; i+=4;
+            *((int *)(&mem->msg[i])) = 1; i+=4;
+          } else if(res->type == GFX_STAT_COUNT) {
+            mem->msg[i++] = res->progress_type;
+            *((int *)(&mem->msg[i])) = 0; i+=4;
+            *((int *)(&mem->msg[i])) = (int)(res->progress * 1000); i+=4;
+          }
+        } else {
+          mem->msg[i++] = GFX_STAT_ERR; mem->msg[i++] = 'E'; mem->msg[i++] = ' '; mem->msg[i++] = ' ';
+        }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+      } else if(str_equals(command, "statall")) {
+        // check the state of everything in the cache to do a cummulative progress
+        int p = 0;
+        bool progress_error = false;
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        for(size_t index = 0; !progress_error && index < t->cache.size; index++) {
+          struct res * res = dict_get_by_index(&t->cache, index);
+          if(!res) continue;
+          else if(res->type == GFX_STAT_ERR) {
+            mem->msg[i++] = GFX_STAT_ERR; mem->msg[i++] = res->error[0]; mem->msg[i++] = res->error[1]; mem->msg[i++] = res->error[2];
+            progress_error = true;
+          } else if(res->type == GFX_STAT_COUNT) {
+            p += (int)(res->progress * 1000);
+          } else {
+            p += 1000;
+          }
+        }
+        if(!progress_error) {
+          mem->msg[i++] = GFX_STAT_ALL;
+          *((int *)(&mem->msg[i])) = ((t->cache.size == 0)? 0 : p / t->cache.size); i+=4;
+        }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+      }
+    }
+    // reply
+    error = srr_reply(&server, i); if(error) { fprintf(stderr, "srr_reply: %s\n", error); exit(EXIT_FAILURE); }
   }
 
-  error = srr_disconnect(&server); if(error) { printf("srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
+  error = srr_disconnect(&server); if(error) { fprintf(stderr, "srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
   return NULL;
 }
 
@@ -132,10 +254,13 @@ static void glfw_error_callback( int error, const char* description ) {
 }
 
 int main(int argc, char** argv) {
-  // create fifo and in another thread read its messages
-  printf("GFX fifo\n");
   struct shared_amongst_thread_t t;
   t.running = true;
+  dict_init(&t.cache, sizeof(struct res), true, true);
+  if(pthread_mutex_init(&t.cache_mutex, NULL) != 0) { fprintf(stderr, "pthread_mutex_init\n"); exit(EXIT_FAILURE); }
+
+  // create fifo and in another thread read its messages
+  printf("GFX fifo\n");
   if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("unlink"); exit(EXIT_FAILURE); }
   if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("mkfifo"); exit(EXIT_FAILURE); }
   pthread_t fifo_thread;
@@ -306,5 +431,7 @@ int main(int argc, char** argv) {
   if(unlink("gfx.fifo") == -1) { perror("unlink"); exit(EXIT_FAILURE); }
   glfwDestroyWindow(window);
   glfwTerminate();
+  dict_free(&t.cache);
+  pthread_mutex_destroy(&t.cache_mutex);
   return EXIT_SUCCESS;
 }

@@ -268,39 +268,30 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "draw ")) {
-        printf("GFX DEBUG %s\n", line);
         char * line_sep = &line[5];
         // normal: draw path x y
         const char * path = strsep(&line_sep, " ");
-        printf("GFX DEBUG draw %s\n", path);
         double p1 = strtod(strsep(&line_sep, " "), NULL);
-        printf("GFX DEBUG draw %s %f\n", path, p1);
         double p2 = strtod(strsep(&line_sep, " "), NULL);
-        printf("GFX DEBUG draw %s %f %f\n", path, p1, p2);
         if(line_sep != NULL) {
           // scaled: draw path x y w h
           double p3 = strtod(strsep(&line_sep, " "), NULL);
           double p4 = strtod(strsep(&line_sep, " "), NULL);
-          printf("GFX DEBUG draw %s %f %f %f %f\n", path, p1, p2, p3, p4);
           if(line_sep != NULL) {
             // region: draw path sx sy w h x y (mx=mirror-x)
             double p5 = strtod(strsep(&line_sep, " "), NULL);
             double p6 = strtod(strsep(&line_sep, " "), NULL);
-            printf("GFX DEBUG draw %s %f %f %f %f %f %f\n", path, p1, p2, p3, p4, p5, p6);
             if(line_sep != NULL) {
               const char * tmp = strsep(&line_sep, " ");
               if(strcmp(tmp, "mx") == 0) {
-                printf("GFX DEBUG draw %s %f %f %f %f %f %f mx\n", path, p1, p2, p3, p4, p5, p6);
               } else {
                 // region: draw path sx sy sw sh x y w h
                 double p7 = strtod(tmp, NULL);
                 double p8 = strtod(strsep(&line_sep, " "), NULL);
-                printf("GFX DEBUG draw %s %f %f %f %f %f %f %f %f\n", path, p1, p2, p3, p4, p5, p6, p7, p8);
               }
             }
           }
         }
-        printf("GFX DEBUG draw done\n");
       } else if(starts_with(line, "text ")) {
       } else if(starts_with(line, "fill ")) {
         char * line_sep = &line[5];
@@ -357,7 +348,7 @@ static void * handle_srr_loop(void * vargp) {
   struct srr_direct * mem = srr_direct(&server);
 
   // wait for a message from the client
-  char _buffer[8192];
+  char _buffer[8193];
   double t0 = glfwGetTime();
   double delta_time = 0;
   while(1) {
@@ -366,6 +357,7 @@ static void * handle_srr_loop(void * vargp) {
     //printf("GFX srr sync\n");
     // copy message, because the reply will overwrite it as we parse
     memcpy(_buffer, mem->msg, mem->length);
+    _buffer[mem->length] = '\0';
     // build reply
     int i = 0;
     if(t->window) t->running &= !glfwWindowShouldClose(t->window);

@@ -105,7 +105,11 @@ static void * handle_fifo_loop(void * vargp) {
   char * line = NULL;
   char * title = NULL;
   GLuint fill_shader;
+  GLuint img_shader;
+  GLuint font_shader;
   vertex_buffer_t * fill_buffer = NULL;
+  vertex_buffer_t * img_buffer = NULL;
+  vertex_buffer_t * font_buffer = NULL;
 
   // matrices
   mat4 model, view, projection;
@@ -134,10 +138,12 @@ static void * handle_fifo_loop(void * vargp) {
         if(sem_wait(&t->flush_post) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
         // flush our drawing to the screen
         if(t->running) {
+          // TODO black bars
           glfwSwapBuffers(t->window);
           glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
           glClearColor(.5, .5, .5, 1); // tmp
           glClear(GL_COLOR_BUFFER_BIT); // tmp
+          // TODO viewport respect aspect ratio with logical W/H
           int width, height;
           glfwGetFramebufferSize(t->window, &width, &height);
           glViewport(0, 0, width, height);
@@ -179,14 +185,34 @@ static void * handle_fifo_loop(void * vargp) {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         // fill shader
         printf("GFX load fill shader\n");
-        char img_shader_vert[] = {
+        char fill_shader_vert[] = {
         #include "fill.vert.xxd"
         , 0 };
-        char img_shader_frag[] = { 
+        char fill_shader_frag[] = {
         #include "fill.frag.xxd"
         , 0 };
-        fill_shader = shader_load_from_src(img_shader_vert, img_shader_frag);
+        fill_shader = shader_load_from_src(fill_shader_vert, fill_shader_frag);
         fill_buffer = vertex_buffer_new("my_position:2f");
+        // img shader
+        printf("GFX load image shader\n");
+        char img_shader_vert[] = {
+        #include "img.vert.xxd"
+        , 0 };
+        char img_shader_frag[] = {
+        #include "img.frag.xxd"
+        , 0 };
+        img_shader = shader_load_from_src(img_shader_vert, img_shader_frag);
+        img_buffer = vertex_buffer_new("my_position:2f,my_tex_uv:2f");
+        // font shader
+        printf("GFX load font shader\n");
+        char text_shader_vert[] = {
+        #include "text.vert.xxd"
+        , 0 };
+        char text_shader_frag[] = {
+        #include "text.frag.xxd"
+        , 0 };
+        font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
+        font_buffer = vertex_buffer_new("vertex:3f,tex_coord:2f,color:4f");
       } else if(starts_with(line, "cache ")) {
       } else if(starts_with(line, "draw ")) {
       } else if(starts_with(line, "text ")) {
@@ -222,7 +248,7 @@ static void * handle_fifo_loop(void * vargp) {
           { x+w,y }
         };
         vertex_buffer_push_back(fill_buffer, vertices, 4, indices, 6);
-        vertex_buffer_render(fill_buffer, GL_TRIANGLES);
+        vertex_buffer_render(fill_buffer, GL_TRIANGLES); // TODO delay render
         vertex_buffer_clear(fill_buffer);
       }
     }
@@ -411,15 +437,8 @@ int main(int argc, char** argv) {
   , 0 };
   GLuint font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
 
-  // images
-  printf("GFX image\n");
-  char img_shader_vert[] = {
-  #include "img.vert.xxd"
-  , 0 };
-  char img_shader_frag[] = { 
-  #include "img.frag.xxd"
-  , 0 };
-  GLuint img_shader = shader_load_from_src(img_shader_vert, img_shader_frag);
+
+  // load an image
   GLuint my_img;
   glGenTextures(1, &my_img);
   glBindTexture(GL_TEXTURE_2D, my_img);
@@ -427,9 +446,7 @@ int main(int argc, char** argv) {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  vertex_buffer_t * img_buffer = vertex_buffer_new("my_position:3f,my_tex_uv:2f");
 
-  // load an image
   printf("GFX load image\n");
   MagickWandGenesis();
   MagickWand * magick = NewMagickWand();

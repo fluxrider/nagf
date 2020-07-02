@@ -77,6 +77,13 @@ static bool starts_with(const char * s, const char * start) {
   return strncmp(start, s, strlen(start)) == 0;
 }
 
+static bool ends_with(const char * s, const char * end) {
+  size_t s_len = strlen(s);
+  size_t end_len = strlen(end);
+  if(end_len > s_len) return false;
+  return strncmp(s + s_len - end_len, end, end_len) == 0;
+}
+
 static bool str_equals(const char * s, const char * s2) {
   return strcmp(s, s2) == 0;
 }
@@ -214,7 +221,69 @@ static void * handle_fifo_loop(void * vargp) {
         font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
         font_buffer = vertex_buffer_new("vertex:3f,tex_coord:2f,color:4f");
       } else if(starts_with(line, "cache ")) {
+        const char * path = &line[6];
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(dict_has(&t->cache, path)) printf("GFX cache refresh %s\n", path); else {
+          if(ends_with(path, ".ttf")) {
+            // TODO cache font
+          } else {
+            // cache image
+            printf("GFX load image %s\n", path);
+            MagickWandGenesis();
+            MagickWand * magick = NewMagickWand();
+            if(MagickReadImage(magick, path) == MagickFalse) { ExceptionType et; char * e = MagickGetException(magick,&et); fprintf(stderr,"MagickReadImage %s\n",e); MagickRelinquishMemory(e); exit(EXIT_FAILURE); }
+            MagickBooleanType retval = MagickSetImageFormat(magick, "RGBA");
+            size_t img_blob_length;
+            unsigned char * img_blob = MagickGetImagesBlob(magick, &img_blob_length);
+            Image * image = GetImageFromMagickWand(magick);
+            GLuint my_img;
+            glGenTextures(1, &my_img);
+            glBindTexture(GL_TEXTURE_2D, my_img);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->columns, image->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_blob);
+            RelinquishMagickMemory(img_blob);
+            DestroyMagickWand(magick);
+            MagickWandTerminus();
+            struct res res;
+            res.type = GFX_STAT_IMG;
+            res.texture = my_img;
+            res.w = image->columns;
+            res.h = image->rows;
+            dict_set(&t->cache, path, &res);
+          }
+        }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "draw ")) {
+      /*
+        char * line_sep = &line[5];
+        // normal: draw path x y
+        const char * path = strsep(&line_sep, " ");
+        double p1 = strtod(strsep(&line_sep, " "), NULL);
+        double p2 = strtod(strsep(&line_sep, " "), NULL);
+        if(line_sep != NULL) {
+          // scaled: draw path x y w h
+          double p3 = strtod(strsep(&line_sep, " "), NULL);
+          double p4 = strtod(strsep(&line_sep, " "), NULL);
+          if(line_sep != NULL) {
+            // region: draw path sx sy w h x y (mx=mirror-x)
+            double p5 = strtod(strsep(&line_sep, " "), NULL);
+            double p6 = strtod(strsep(&line_sep, " "), NULL);
+            if(line_sep != NULL) {
+              const char * tmp = strsep(&line_sep, " ");
+              if(strcmp(tmp, "mx") == 0) {
+                
+              } else {
+                // region: draw path sx sy sw sh x y w h
+                double p7 = strtod(tmp, NULL);
+                double p8 = strtod(strsep(&line_sep, " "), NULL);
+              }
+            }
+          }
+        }
+        */
       } else if(starts_with(line, "text ")) {
       } else if(starts_with(line, "fill ")) {
         char * line_sep = &line[5];

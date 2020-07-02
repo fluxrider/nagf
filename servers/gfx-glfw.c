@@ -68,7 +68,7 @@ static GLuint shader_load_from_src(const char * vert_source, const char * frag_s
     GLchar messages[256];
     glGetProgramInfoLog(handle, sizeof(messages), 0, messages);
     fprintf(stderr, "GFX error: %s\n", messages);
-    exit(1);
+    exit(EXIT_FAILURE);
   }
   return handle;
 }
@@ -104,6 +104,15 @@ static void * handle_fifo_loop(void * vargp) {
   struct shared_amongst_thread_t * t = vargp;
   char * line = NULL;
   char * title = NULL;
+  GLuint fill_shader;
+  vertex_buffer_t * fill_buffer = NULL;
+
+  // matrices
+  mat4 model, view, projection;
+  mat4_set_identity(&projection);
+  mat4_set_identity(&model);
+  mat4_set_identity(&view);
+
   while(t->running) {
     FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("GFX error: fopen"); exit(EXIT_FAILURE); }
     size_t alloc = 0;
@@ -127,8 +136,12 @@ static void * handle_fifo_loop(void * vargp) {
         if(t->running) {
           glfwSwapBuffers(t->window);
           glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
-          glClearColor(.5, .5, .5, 1);
-          glClear(GL_COLOR_BUFFER_BIT);
+          glClearColor(.5, .5, .5, 1); // tmp
+          glClear(GL_COLOR_BUFFER_BIT); // tmp
+          int width, height;
+          glfwGetFramebufferSize(t->window, &width, &height);
+          glViewport(0, 0, width, height);
+          mat4_set_orthographic(&projection, 0, width, height, 0, -1, 1);
         }
       } else if(str_equals(line, "hq")) {
         printf("GFX fifo hq\n");
@@ -162,10 +175,55 @@ static void * handle_fifo_loop(void * vargp) {
         printf("GFX glew\n");
         glewExperimental = GL_TRUE;
         GLenum err = glewInit(); if(GLEW_OK != err) { fprintf(stderr, "GFX error: glewInit() %s\n", glewGetErrorString(err)); exit(EXIT_FAILURE); }
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        // fill shader
+        printf("GFX load fill shader\n");
+        char img_shader_vert[] = {
+        #include "fill.vert.xxd"
+        , 0 };
+        char img_shader_frag[] = { 
+        #include "fill.frag.xxd"
+        , 0 };
+        fill_shader = shader_load_from_src(img_shader_vert, img_shader_frag);
+        fill_buffer = vertex_buffer_new("my_position:2f");
       } else if(starts_with(line, "cache ")) {
       } else if(starts_with(line, "draw ")) {
       } else if(starts_with(line, "text ")) {
       } else if(starts_with(line, "fill ")) {
+        char * line_sep = &line[5];
+        const char * color = strsep(&line_sep, " ");
+        char color_2[3]; color_2[2] = '\0';
+        double a = 1;
+        int i = 0;
+        if(strlen(color) == 8) {
+          color_2[0] = color[i++]; color_2[1] = color[i++];
+          a = strtol(color_2, NULL, 16) / 255.0;
+        }
+        color_2[0] = color[i++]; color_2[1] = color[i++];
+        double r = strtol(color_2, NULL, 16) / 255.0;
+        color_2[0] = color[i++]; color_2[1] = color[i++];
+        double g = strtol(color_2, NULL, 16) / 255.0;
+        color_2[0] = color[i++]; color_2[1] = color[i++];
+        double b = strtol(color_2, NULL, 16) / 255.0;
+        double x = strtod(strsep(&line_sep, " "), NULL);
+        double y = strtod(strsep(&line_sep, " "), NULL);
+        double w = strtod(strsep(&line_sep, " "), NULL);
+        double h = strtod(strsep(&line_sep, " "), NULL);
+        glUseProgram(fill_shader);
+        glUniform4f(glGetUniformLocation(fill_shader, "my_color"), r, g, b, a);
+        glUniformMatrix4fv(glGetUniformLocation(fill_shader, "my_model"), 1, 0, model.data);
+        glUniformMatrix4fv(glGetUniformLocation(fill_shader, "my_projection"), 1, 0, projection.data);
+        GLuint indices[6] = {0,1,2, 0,2,3};
+        struct { float x, y; } vertices[4] = {
+          { x,y },
+          { x,y+h },
+          { x+w,y+h },
+          { x+w,y }
+        };
+        vertex_buffer_push_back(fill_buffer, vertices, 4, indices, 6);
+        vertex_buffer_render(fill_buffer, GL_TRIANGLES);
+        vertex_buffer_clear(fill_buffer);
       }
     }
     fclose(f);
@@ -333,11 +391,6 @@ int main(int argc, char** argv) {
   pthread_create(&srr_thread, NULL, handle_srr_loop, t);
 
   /*
-  // matrices
-  mat4 model, view, projection;
-  mat4_set_identity(&projection);
-  mat4_set_identity(&model);
-  mat4_set_identity(&view);
 
   // font
   printf("GFX font\n");
@@ -395,14 +448,8 @@ int main(int argc, char** argv) {
   MagickWandTerminus();
 */ 
  /*
-    int width, height;
-    glfwGetFramebufferSize(t->window, &width, &height);
-    glViewport(0, 0, width, height);
-    mat4_set_orthographic(&projection, 0, width, 0, height, -1, 1);
 
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glUseProgram(font_shader);
     glUniform1i(glGetUniformLocation(font_shader, "texture"), 0);

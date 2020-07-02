@@ -25,6 +25,8 @@ else
   xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.frag > text.frag.xxd
   xxd -i < gfx-glfw.img.vert > img.vert.xxd
   xxd -i < gfx-glfw.img.frag > img.frag.xxd
+  xxd -i < gfx-glfw.fill.vert > fill.vert.xxd
+  xxd -i < gfx-glfw.fill.frag > fill.frag.xxd
   gcc -o gfx-glfw gfx-glfw.c gfx-glfw_freetype-gl/*.c ../utils/*.c -L../libsrr -I../libsrr -I../utils -lsrr $(pkg-config --libs --cflags x11 opengl glfw3 glew freetype2 MagickWand) -lpthread -lm
   rm *.xxd
 fi

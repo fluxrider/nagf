@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <sys/types.h>
@@ -105,11 +106,21 @@ struct shared_amongst_thread_t {
   bool first_flush;
 };
 
+static char * str_trim(char * s) {
+  while(isspace(*s)) s++;
+  if(*s == '\0') return s; // all space
+  char * end = s + strlen(s) - 1;
+  while(end > s && isspace(*end)) end--;
+  end[1] = '\0';
+  return s;
+}
+
 static void * handle_fifo_loop(void * vargp) {
   // this is the 'main' thread as far as glfw goes
   printf("GFX fifo thread\n");
   struct shared_amongst_thread_t * t = vargp;
-  char * line = NULL;
+  char * _line = NULL;
+  size_t alloc = 0;
   char * title = NULL;
   GLuint fill_shader;
   GLuint img_shader;
@@ -126,10 +137,10 @@ static void * handle_fifo_loop(void * vargp) {
 
   while(t->running) {
     FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("GFX error: fopen"); exit(EXIT_FAILURE); }
-    size_t alloc = 0;
     ssize_t n;
-    while((n = getline(&line, &alloc, f)) != -1) {
-      if(line[n - 1] == '\n') line[n - 1] = '\0';
+    while((n = getline(&_line, &alloc, f)) != -1) {
+      if(_line[n - 1] == '\n') _line[n - 1] = '\0';
+      char * line = str_trim(_line);
       if(str_equals(line, "flush")) {
         //printf("GFX fifo flush\n");
         // finish setting up window on first flush
@@ -257,33 +268,39 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "draw ")) {
-      /*
+        printf("GFX DEBUG %s\n", line);
         char * line_sep = &line[5];
         // normal: draw path x y
         const char * path = strsep(&line_sep, " ");
+        printf("GFX DEBUG draw %s\n", path);
         double p1 = strtod(strsep(&line_sep, " "), NULL);
+        printf("GFX DEBUG draw %s %f\n", path, p1);
         double p2 = strtod(strsep(&line_sep, " "), NULL);
+        printf("GFX DEBUG draw %s %f %f\n", path, p1, p2);
         if(line_sep != NULL) {
           // scaled: draw path x y w h
           double p3 = strtod(strsep(&line_sep, " "), NULL);
           double p4 = strtod(strsep(&line_sep, " "), NULL);
+          printf("GFX DEBUG draw %s %f %f %f %f\n", path, p1, p2, p3, p4);
           if(line_sep != NULL) {
             // region: draw path sx sy w h x y (mx=mirror-x)
             double p5 = strtod(strsep(&line_sep, " "), NULL);
             double p6 = strtod(strsep(&line_sep, " "), NULL);
+            printf("GFX DEBUG draw %s %f %f %f %f %f %f\n", path, p1, p2, p3, p4, p5, p6);
             if(line_sep != NULL) {
               const char * tmp = strsep(&line_sep, " ");
               if(strcmp(tmp, "mx") == 0) {
-                
+                printf("GFX DEBUG draw %s %f %f %f %f %f %f mx\n", path, p1, p2, p3, p4, p5, p6);
               } else {
                 // region: draw path sx sy sw sh x y w h
                 double p7 = strtod(tmp, NULL);
                 double p8 = strtod(strsep(&line_sep, " "), NULL);
+                printf("GFX DEBUG draw %s %f %f %f %f %f %f %f %f\n", path, p1, p2, p3, p4, p5, p6, p7, p8);
               }
             }
           }
         }
-        */
+        printf("GFX DEBUG draw done\n");
       } else if(starts_with(line, "text ")) {
       } else if(starts_with(line, "fill ")) {
         char * line_sep = &line[5];
@@ -323,7 +340,7 @@ static void * handle_fifo_loop(void * vargp) {
     }
     fclose(f);
   }
-  free(line);
+  free(_line);
   free(title);
   if(sem_post(&t->should_quit) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
   return NULL;

@@ -271,27 +271,80 @@ static void * handle_fifo_loop(void * vargp) {
         char * line_sep = &line[5];
         // normal: draw path x y
         const char * path = strsep(&line_sep, " ");
-        double p1 = strtod(strsep(&line_sep, " "), NULL);
-        double p2 = strtod(strsep(&line_sep, " "), NULL);
-        if(line_sep != NULL) {
-          // scaled: draw path x y w h
-          double p3 = strtod(strsep(&line_sep, " "), NULL);
-          double p4 = strtod(strsep(&line_sep, " "), NULL);
-          if(line_sep != NULL) {
-            // region: draw path sx sy w h x y (mx=mirror-x)
-            double p5 = strtod(strsep(&line_sep, " "), NULL);
-            double p6 = strtod(strsep(&line_sep, " "), NULL);
-            if(line_sep != NULL) {
-              const char * tmp = strsep(&line_sep, " ");
-              if(strcmp(tmp, "mx") == 0) {
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(dict_has(&t->cache, path)) {
+          struct res * res = dict_get(&t->cache, path);
+          glUseProgram(img_shader);
+          glUniform1i(glGetUniformLocation(img_shader, "my_sampler"), 0);
+          glEnable(GL_TEXTURE_2D);
+          glActiveTexture(GL_TEXTURE0);
+          glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_model"), 1, 0, model.data);
+          glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
+          glBindTexture(GL_TEXTURE_2D, res->texture);
+          GLuint indices[6] = {0,1,2, 0,2,3};
+          double p1 = strtod(strsep(&line_sep, " "), NULL);
+          double p2 = strtod(strsep(&line_sep, " "), NULL);
+          if(!line_sep) {
+            struct { float x, y; float s, t; } vertices[4] = {
+              { p1, p2, 0,0 },
+              { p1, p2 + res->h, 0,1 },
+              { p1 + res->w, p2 + res->h, 1,1 },
+              { p1 + res->w, p2, 1,0 }
+            };
+            vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+          } else {
+            // scaled: draw path x y w h
+            double p3 = strtod(strsep(&line_sep, " "), NULL);
+            double p4 = strtod(strsep(&line_sep, " "), NULL);
+            if(!line_sep) {
+              struct { float x, y; float s, t; } vertices[4] = {
+                { p1, p2, 0,0 },
+                { p1, p2 + p4, 0,1 },
+                { p1 + p3, p2 + p4, 1,1 },
+                { p1 + p3, p2, 1,0 }
+              };
+              vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+            } else {
+              // region: draw path sx sy w h x y (mx=mirror-x)
+              double p5 = strtod(strsep(&line_sep, " "), NULL);
+              double p6 = strtod(strsep(&line_sep, " "), NULL);
+              if(!line_sep) {
+                struct { float x, y; float s, t; } vertices[4] = {
+                  { p5, p6, p1 / res->w, p2 / res->h },
+                  { p5, p6 + p4, p1 / res->w, (p2 + p4) / res->h },
+                  { p5 + p3, p6 + p4, (p1 + p3) / res->w, (p2 + p4) / res->h },
+                  { p5 + p3, p6, (p1 + p3) / res->w, p2 / res->h }
+                };
+                vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
               } else {
-                // region: draw path sx sy sw sh x y w h
-                double p7 = strtod(tmp, NULL);
-                double p8 = strtod(strsep(&line_sep, " "), NULL);
+                const char * tmp = strsep(&line_sep, " ");
+                if(strcmp(tmp, "mx") == 0) {
+                  struct { float x, y; float s, t; } vertices[4] = {
+                    { p5, p6, (p1 + p3) / res->w, p2 / res->h },
+                    { p5, p6 + p4, (p1 + p3) / res->w, (p2 + p4) / res->h },
+                    { p5 + p3, p6 + p4, p1 / res->w, (p2 + p4) / res->h },
+                    { p5 + p3, p6, p1 / res->w, p2 / res->h }
+                  };
+                  vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+                } else {
+                  // region: draw path sx sy sw sh x y w h
+                  double p7 = strtod(tmp, NULL);
+                  double p8 = strtod(strsep(&line_sep, " "), NULL);
+                  struct { float x, y; float s, t; } vertices[4] = {
+                    { p5, p6, p1 / res->w, p2 / res->h },
+                    { p5, p6 + p8, p1 / res->w, (p2 + p4) / res->h },
+                    { p5 + p7, p6 + p8, (p1 + p3) / res->w, (p2 + p4) / res->h },
+                    { p5 + p7, p6, (p1 + p3) / res->w, p2 / res->h }
+                  };
+                  vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+                }
               }
             }
           }
+          vertex_buffer_render(img_buffer, GL_TRIANGLES); // TODO delay render
+          vertex_buffer_clear(img_buffer);
         }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "text ")) {
       } else if(starts_with(line, "fill ")) {
         char * line_sep = &line[5];

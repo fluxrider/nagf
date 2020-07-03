@@ -21,8 +21,8 @@ pushd ../../servers
 if [[ -n $1 ]]; then
   javac -classpath .. gfx-swing.java
 else
-  xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.vert > text.vert.xxd
-  xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.frag > text.frag.xxd
+  xxd -i < gfx-glfw.font.vert > font.vert.xxd
+  xxd -i < gfx-glfw.font.frag > font.frag.xxd
   xxd -i < gfx-glfw.img.vert > img.vert.xxd
   xxd -i < gfx-glfw.img.frag > img.frag.xxd
   xxd -i < gfx-glfw.fill.vert > fill.vert.xxd

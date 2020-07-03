@@ -50,7 +50,7 @@ struct res {
   };
 };
 
-static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char * text, vec4 * color, vec2 * pen) {
+static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char * text, vec4 * color, double x, double y) {
   size_t i;
   float r = color->red, g = color->green, b = color->blue, a = color->alpha;
   size_t len = strlen(text);
@@ -58,24 +58,24 @@ static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char
     texture_glyph_t *glyph = texture_font_get_glyph(font, text + i);
     if( glyph != NULL ) {
       float kerning = i > 0? texture_glyph_get_kerning( glyph, text + i - 1 ) : 0.0f;
-      pen->x += kerning;
-      int x0  = (int)( pen->x + glyph->offset_x );
-      int y0  = (int)( pen->y + glyph->offset_y );
-      int x1  = (int)( pen->x + glyph->offset_x + glyph->width );
-      int y1  = (int)( pen->y + glyph->offset_y - glyph->height );
+      x += kerning;
+      int x0  = (int)( x + glyph->offset_x );
+      int y0  = (int)( y + glyph->offset_y );
+      int x1  = (int)( x + glyph->offset_x + glyph->width );
+      int y1  = (int)( y + glyph->offset_y - glyph->height );
       float s0 = glyph->s0;
       float t0 = glyph->t0;
       float s1 = glyph->s1;
       float t1 = glyph->t1;
       GLuint indices[6] = {0,1,2, 0,2,3};
-      struct { float x, y, z; float s, t; float r, g, b, a; } vertices[4] = {
-        { x0,y0,0, s0,t0, r,g,b,a },
-        { x0,y1,0, s0,t1, r,g,b,a },
-        { x1,y1,0, s1,t1, r,g,b,a },
-        { x1,y0,0, s1,t0, r,g,b,a }
+      struct { float x, y; float s, t; float r, g, b, a; } vertices[4] = {
+        { x0,y0, s0,t0, r,g,b,a },
+        { x0,y1, s0,t1, r,g,b,a },
+        { x1,y1, s1,t1, r,g,b,a },
+        { x1,y0, s1,t0, r,g,b,a }
       };
       vertex_buffer_push_back( buffer, vertices, 4, indices, 6 );
-      pen->x += glyph->advance_x;
+      x += glyph->advance_x;
     }
   }
 }
@@ -270,13 +270,13 @@ static void * handle_fifo_loop(void * vargp) {
         // font shader
         printf("GFX load font shader\n");
         char text_shader_vert[] = {
-        #include "text.vert.xxd"
+        #include "font.vert.xxd"
         , 0 };
         char text_shader_frag[] = {
-        #include "text.frag.xxd"
+        #include "font.frag.xxd"
         , 0 };
         font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
-        font_buffer = vertex_buffer_new("vertex:3f,tex_coord:2f,color:4f");
+        font_buffer = vertex_buffer_new("vertex:2f,tex_coord:2f,color:4f");
       } else if(starts_with(line, "cache ")) {
         const char * path = &line[6];
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
@@ -438,16 +438,14 @@ static void * handle_fifo_loop(void * vargp) {
           
           // TODO line break and font size
           {
-            vec2 pen = {{x,y}};
             res->font->rendermode = RENDER_OUTLINE_NEGATIVE;
             res->font->outline_thickness = 1;
-            add_text(font_buffer, res->font, message, &fill, &pen);
+            add_text(font_buffer, res->font, message, &fill, x, y);
           }
           {
-            vec2 pen = {{x,y}};
             res->font->rendermode = RENDER_OUTLINE_EDGE;
             res->font->outline_thickness = 1;
-            add_text(font_buffer, res->font, message, &outline, &pen);
+            add_text(font_buffer, res->font, message, &outline, x, y);
           }
           // TODO only upload atlas if it changed
           glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
@@ -594,6 +592,7 @@ int main(int argc, char** argv) {
   t->window = NULL;
   t->running = true;
   t->first_flush = true;
+  t->focused = true;
   dict_init(&t->cache, sizeof(struct res), true, true);
   if(pthread_mutex_init(&t->cache_mutex, NULL) != 0) { fprintf(stderr, "GFX error: pthread_mutex_init\n"); exit(EXIT_FAILURE); }
   if(sem_init(&t->flush_pre, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }

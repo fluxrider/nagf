@@ -50,6 +50,36 @@ struct res {
   };
 };
 
+static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char * text, vec4 * color, vec2 * pen) {
+  size_t i;
+  float r = color->red, g = color->green, b = color->blue, a = color->alpha;
+  size_t len = strlen(text);
+  for(i = 0; i < len; ++i) {
+    texture_glyph_t *glyph = texture_font_get_glyph(font, text + i);
+    if( glyph != NULL ) {
+      float kerning = i > 0? texture_glyph_get_kerning( glyph, text + i - 1 ) : 0.0f;
+      pen->x += kerning;
+      int x0  = (int)( pen->x + glyph->offset_x );
+      int y0  = (int)( pen->y + glyph->offset_y );
+      int x1  = (int)( pen->x + glyph->offset_x + glyph->width );
+      int y1  = (int)( pen->y + glyph->offset_y - glyph->height );
+      float s0 = glyph->s0;
+      float t0 = glyph->t0;
+      float s1 = glyph->s1;
+      float t1 = glyph->t1;
+      GLuint indices[6] = {0,1,2, 0,2,3};
+      struct { float x, y, z; float s, t; float r, g, b, a; } vertices[4] = {
+        { x0,y0,0, s0,t0, r,g,b,a },
+        { x0,y1,0, s0,t1, r,g,b,a },
+        { x1,y1,0, s1,t1, r,g,b,a },
+        { x1,y0,0, s1,t0, r,g,b,a }
+      };
+      vertex_buffer_push_back( buffer, vertices, 4, indices, 6 );
+      pen->x += glyph->advance_x;
+    }
+  }
+}
+
 static GLuint shader_load_from_src(const char * vert_source, const char * frag_source) {
   GLuint handle = glCreateProgram();
 
@@ -113,6 +143,22 @@ static char * str_trim(char * s) {
   while(end > s && isspace(*end)) end--;
   end[1] = '\0';
   return s;
+}
+
+static void parse_color(const char * color, double * r, double * g, double * b, double * a) {
+  char color_2[3]; color_2[2] = '\0';
+  *a = 1;
+  int i = 0;
+  if(strlen(color) == 8) {
+    color_2[0] = color[i++]; color_2[1] = color[i++];
+    *a = strtol(color_2, NULL, 16) / 255.0;
+  }
+  color_2[0] = color[i++]; color_2[1] = color[i++];
+  *r = strtol(color_2, NULL, 16) / 255.0;
+  color_2[0] = color[i++]; color_2[1] = color[i++];
+  *g = strtol(color_2, NULL, 16) / 255.0;
+  color_2[0] = color[i++]; color_2[1] = color[i++];
+  *b = strtol(color_2, NULL, 16) / 255.0;
 }
 
 static void * handle_fifo_loop(void * vargp) {
@@ -236,9 +282,20 @@ static void * handle_fifo_loop(void * vargp) {
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
         if(dict_has(&t->cache, path)) printf("GFX cache refresh %s\n", path); else {
           if(ends_with(path, ".ttf")) {
-            // TODO cache font
+            // cache font TODO async
+            struct res res;
+            res.type = GFX_STAT_FNT;
+            res.atlas = texture_atlas_new(1024, 1024, 1);
+            res.font = texture_font_new_from_file(res.atlas, 70, path); // TODO ... I will have to hack freetype-gl to allow changing size at low cost
+            glGenTextures(1, &res.atlas->id);
+            glBindTexture(GL_TEXTURE_2D, res.atlas->id);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            dict_set(&t->cache, path, &res);
           } else {
-            // cache image
+            // cache image TODO async
             printf("GFX load image %s\n", path);
             MagickWandGenesis();
             MagickWand * magick = NewMagickWand();
@@ -346,22 +403,61 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "text ")) {
+        char * line_sep = &line[5];
+        const char * path = strsep(&line_sep, " ");
+        if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+        if(dict_has(&t->cache, path)) {
+          // text font x y w h valign halign line_count clip scroll outline_color fill_color outline_size message
+          struct res * res = dict_get(&t->cache, path);
+          glUseProgram(font_shader);
+          glUniform1i(glGetUniformLocation(font_shader, "texture"), 0);
+          glUniformMatrix4fv(glGetUniformLocation(font_shader, "model"), 1, 0, model.data);
+          glUniformMatrix4fv(glGetUniformLocation(font_shader, "view"), 1, 0, view.data);
+          glUniformMatrix4fv(glGetUniformLocation(font_shader, "projection"), 1, 0, projection.data);
+          glBindTexture(GL_TEXTURE_2D, res->atlas->id);
+          
+          double x = strtod(strsep(&line_sep, " "), NULL);
+          double y = strtod(strsep(&line_sep, " "), NULL);
+          double w = strtod(strsep(&line_sep, " "), NULL);
+          double h = strtod(strsep(&line_sep, " "), NULL);
+          const char * valign = strsep(&line_sep, " ");
+          const char * halign = strsep(&line_sep, " ");
+          int line_count = strtol(strsep(&line_sep, " "), NULL, 10);
+          bool clip = strcmp(strsep(&line_sep, " "), "clip") == 0;
+          double scroll = strtod(strsep(&line_sep, " "), NULL);
+          double outline_r, outline_g, outline_b, outline_a;
+          double fill_r, fill_g, fill_b, fill_a;
+          parse_color(strsep(&line_sep, " "), &outline_r, &outline_g, &outline_b, &outline_a);
+          parse_color(strsep(&line_sep, " "), &fill_r, &fill_g, &fill_b, &fill_a);
+          double outline_size = strtod(strsep(&line_sep, " "), NULL);
+          const char * message = line_sep;
+          double line_height = h / line_count;
+          vec4 outline = {{outline_r,outline_g,outline_b,outline_a}};
+          vec4 fill = {{fill_r,fill_g,fill_b,fill_a}};
+          
+          // TODO line break and font size
+          {
+            vec2 pen = {{x,y}};
+            res->font->rendermode = RENDER_OUTLINE_NEGATIVE;
+            res->font->outline_thickness = 1;
+            add_text(font_buffer, res->font, message, &fill, &pen);
+          }
+          {
+            vec2 pen = {{x,y}};
+            res->font->rendermode = RENDER_OUTLINE_EDGE;
+            res->font->outline_thickness = 1;
+            add_text(font_buffer, res->font, message, &outline, &pen);
+          }
+          // TODO only upload atlas if it changed
+          glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
+          vertex_buffer_render(font_buffer, GL_TRIANGLES); // TODO delay
+          vertex_buffer_clear(font_buffer);
+        }
       } else if(starts_with(line, "fill ")) {
         char * line_sep = &line[5];
         const char * color = strsep(&line_sep, " ");
-        char color_2[3]; color_2[2] = '\0';
-        double a = 1;
-        int i = 0;
-        if(strlen(color) == 8) {
-          color_2[0] = color[i++]; color_2[1] = color[i++];
-          a = strtol(color_2, NULL, 16) / 255.0;
-        }
-        color_2[0] = color[i++]; color_2[1] = color[i++];
-        double r = strtol(color_2, NULL, 16) / 255.0;
-        color_2[0] = color[i++]; color_2[1] = color[i++];
-        double g = strtol(color_2, NULL, 16) / 255.0;
-        color_2[0] = color[i++]; color_2[1] = color[i++];
-        double b = strtol(color_2, NULL, 16) / 255.0;
+        double r, g, b, a;
+        parse_color(color, &r, &g, &b, &a);
         double x = strtod(strsep(&line_sep, " "), NULL);
         double y = strtod(strsep(&line_sep, " "), NULL);
         double w = strtod(strsep(&line_sep, " "), NULL);
@@ -491,37 +587,6 @@ static void * handle_srr_loop(void * vargp) {
   return NULL;
 }
 
-// --------------------------------------------------------------- add_text ---
-static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char * text, vec4 * color, vec2 * pen) {
-  size_t i;
-  float r = color->red, g = color->green, b = color->blue, a = color->alpha;
-  size_t len = strlen(text);
-  for(i = 0; i < len; ++i) {
-    texture_glyph_t *glyph = texture_font_get_glyph(font, text + i);
-    if( glyph != NULL ) {
-      float kerning = i > 0? texture_glyph_get_kerning( glyph, text + i - 1 ) : 0.0f;
-      pen->x += kerning;
-      int x0  = (int)( pen->x + glyph->offset_x );
-      int y0  = (int)( pen->y + glyph->offset_y );
-      int x1  = (int)( pen->x + glyph->offset_x + glyph->width );
-      int y1  = (int)( pen->y + glyph->offset_y - glyph->height );
-      float s0 = glyph->s0;
-      float t0 = glyph->t0;
-      float s1 = glyph->s1;
-      float t1 = glyph->t1;
-      GLuint indices[6] = {0,1,2, 0,2,3};
-      struct { float x, y, z; float s, t; float r, g, b, a; } vertices[4] = {
-        { x0,y0,0, s0,t0, r,g,b,a },
-        { x0,y1,0, s0,t1, r,g,b,a },
-        { x1,y1,0, s1,t1, r,g,b,a },
-        { x1,y0,0, s1,t0, r,g,b,a }
-      };
-      vertex_buffer_push_back( buffer, vertices, 4, indices, 6 );
-      pen->x += glyph->advance_x;
-    }
-  }
-}
-
 int main(int argc, char** argv) {
   struct shared_amongst_thread_t * t = malloc(sizeof(struct shared_amongst_thread_t)); // place it on heap, as it is unclear is threads can properly access stack var
   t->window = NULL;
@@ -546,117 +611,6 @@ int main(int argc, char** argv) {
   t->srr_path = argv[1];
   pthread_t srr_thread;
   pthread_create(&srr_thread, NULL, handle_srr_loop, t);
-
-  /*
-
-  // font
-  printf("GFX font\n");
-  texture_atlas_t * font_atlas = texture_atlas_new(1024, 1024, 1);
-  texture_font_t * font = texture_font_new_from_file(font_atlas, 70, "/usr/share/fonts/TTF/DejaVuSans.ttf");
-  glGenTextures(1, &font_atlas->id);
-  glBindTexture(GL_TEXTURE_2D, font_atlas->id);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  vertex_buffer_t * text_buffer = vertex_buffer_new("vertex:3f,tex_coord:2f,color:4f");
-  char text_shader_vert[] = {
-  #include "text.vert.xxd"
-  , 0 };
-  char text_shader_frag[] = { 
-  #include "text.frag.xxd"
-  , 0 };
-  GLuint font_shader = shader_load_from_src(text_shader_vert, text_shader_frag);
-
-
-  // load an image
-  GLuint my_img;
-  glGenTextures(1, &my_img);
-  glBindTexture(GL_TEXTURE_2D, my_img);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-  printf("GFX load image\n");
-  MagickWandGenesis();
-  MagickWand * magick = NewMagickWand();
-  if(MagickReadImage(magick, "../demos/zeldaish/princess.png") == MagickFalse) { ExceptionType et; char * e = MagickGetException(magick,&et); fprintf(stderr,"MagickReadImage %s\n",e); MagickRelinquishMemory(e); exit(EXIT_FAILURE); }
-  MagickBooleanType retval = MagickSetImageFormat(magick, "RGBA");
-  printf("M %d\n", retval == MagickTrue);
-  size_t img_blob_length;
-  unsigned char * img_blob = MagickGetImagesBlob(magick, &img_blob_length);
-  printf("M %p %d\n", img_blob, (int)img_blob_length);
-  Image * image = GetImageFromMagickWand(magick);
-  printf("image %p\n", image);
-  printf("image w:%d h:%d\n", image->columns, image->rows);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->columns, image->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, img_blob);
-  RelinquishMagickMemory(img_blob);
-  DestroyMagickWand(magick);
-  MagickWandTerminus();
-*/ 
- /*
-
-
-
-    glUseProgram(font_shader);
-    glUniform1i(glGetUniformLocation(font_shader, "texture"), 0);
-    glUniformMatrix4fv(glGetUniformLocation(font_shader, "model"), 1, 0, model.data);
-    glUniformMatrix4fv(glGetUniformLocation(font_shader, "view"), 1, 0, view.data);
-    glUniformMatrix4fv(glGetUniformLocation(font_shader, "projection"), 1, 0, projection.data);
-    glBindTexture(GL_TEXTURE_2D, font_atlas->id);
-    
-    vec4 black = {{0,0,0,1}};
-    vec4 white = {{1,1,1,1}};
-    char text[256];
-    snprintf(text, 256, "fps %f", 1 / delta);
-    {
-      vec2 pen = {{200,100}};
-      font->rendermode = RENDER_OUTLINE_NEGATIVE;
-      font->outline_thickness = 1;
-      add_text(text_buffer, font, text, &white, &pen);
-    }
-    {
-      vec2 pen = {{200,100}};
-      font->rendermode = RENDER_OUTLINE_EDGE;
-      font->outline_thickness = 1;
-      add_text(text_buffer, font, text, &black, &pen);
-    }
-    // TODO only upload atlas if it changed
-    glBindTexture(GL_TEXTURE_2D, font_atlas->id);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, font_atlas->width, font_atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, font_atlas->data);
-    vertex_buffer_render(text_buffer, GL_TRIANGLES);
-    vertex_buffer_clear(text_buffer);
-    
-    // image
-    glUseProgram(img_shader);
-    glUniform1i(glGetUniformLocation(img_shader, "my_sampler"), 0);
-    glEnable(GL_TEXTURE_2D);
-    glActiveTexture(GL_TEXTURE0);
-    glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_model"), 1, 0, model.data);
-    glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
-    glBindTexture(GL_TEXTURE_2D, my_img);
-    int x0  = 10;
-    int y0  = 300;
-    int x1  = 150;
-    int y1  = 10;
-    GLuint indices[6] = {0,1,2, 0,2,3};
-    struct { float x, y, z; float s, t; } vertices[4] = {
-      { x0,y0,0, 0,0 },
-      { x0,y1,0, 0,1 },
-      { x1,y1,0, 1,1 },
-      { x1,y0,0, 1,0 }
-    };
-    vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
-    vertex_buffer_render(img_buffer, GL_TRIANGLES);
-    vertex_buffer_clear(img_buffer);
-
-    glfwSwapBuffers(t->window);
-    glfwPollEvents();
-  }
-  t->running = false;
-  // TODO kill threads
-*/
 
   // wait for signal to quit
   if(sem_wait(&t->should_quit) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }

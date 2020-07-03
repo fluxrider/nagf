@@ -33,7 +33,7 @@ struct res {
   union {
     struct {
       texture_atlas_t * atlas;
-      texture_font_t * font;
+      struct dict * fonts;
     };
     struct {
       double progress;
@@ -287,7 +287,8 @@ static void * handle_fifo_loop(void * vargp) {
             struct res res;
             res.type = GFX_STAT_FNT;
             res.atlas = texture_atlas_new(1024, 1024, 1);
-            res.font = texture_font_new_from_file(res.atlas, 70, path); // TODO ... I will have to hack freetype-gl to allow changing size at low cost
+            res.fonts = malloc(sizeof(struct dict));
+            dict_init(res.fonts, 0, false, false);
             glGenTextures(1, &res.atlas->id);
             glBindTexture(GL_TEXTURE_2D, res.atlas->id);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -417,6 +418,8 @@ static void * handle_fifo_loop(void * vargp) {
           glUniformMatrix4fv(glGetUniformLocation(font_shader, "projection"), 1, 0, projection.data);
           glBindTexture(GL_TEXTURE_2D, res->atlas->id);
           
+          bool tight = starts_with(line_sep, "tight ");
+          if(tight) strsep(&line_sep, " ");
           double x = strtod(strsep(&line_sep, " "), NULL);
           double y = strtod(strsep(&line_sep, " "), NULL);
           double w = strtod(strsep(&line_sep, " "), NULL);
@@ -436,16 +439,26 @@ static void * handle_fifo_loop(void * vargp) {
           vec4 outline = {{outline_r,outline_g,outline_b,outline_a}};
           vec4 fill = {{fill_r,fill_g,fill_b,fill_a}};
           
+          texture_font_t * font;
+          double font_size = line_height;
+          int font_size_key = (int)(font_size * 1000);
+          if(dict_has(res->fonts, font_size_key)) {
+            font = dict_get(res->fonts, font_size_key);
+          } else {
+            font = texture_font_new_from_file(res->atlas, font_size, path);
+            dict_set(res->fonts, font_size_key, font);
+          }
+          
           // TODO line break and font size
           {
-            res->font->rendermode = RENDER_OUTLINE_NEGATIVE;
-            res->font->outline_thickness = 1;
-            add_text(font_buffer, res->font, message, &fill, x, y);
+            font->rendermode = RENDER_OUTLINE_NEGATIVE;
+            font->outline_thickness = outline_size;
+            add_text(font_buffer, font, message, &fill, x, y + line_height);
           }
           {
-            res->font->rendermode = RENDER_OUTLINE_EDGE;
-            res->font->outline_thickness = 1;
-            add_text(font_buffer, res->font, message, &outline, x, y);
+            font->rendermode = RENDER_OUTLINE_EDGE;
+            font->outline_thickness = outline_size;
+            add_text(font_buffer, font, message, &outline, x, y + line_height);
           }
           // TODO only upload atlas if it changed
           glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);

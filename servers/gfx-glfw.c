@@ -283,6 +283,7 @@ static void * handle_fifo_loop(void * vargp) {
         if(dict_has(&t->cache, path)) printf("GFX cache refresh %s\n", path); else {
           if(ends_with(path, ".ttf")) {
             // cache font TODO async
+            printf("GFX load font %s\n", path);
             struct res res;
             res.type = GFX_STAT_FNT;
             res.atlas = texture_atlas_new(1024, 1024, 1);
@@ -453,6 +454,7 @@ static void * handle_fifo_loop(void * vargp) {
           vertex_buffer_render(font_buffer, GL_TRIANGLES); // TODO delay
           vertex_buffer_clear(font_buffer);
         }
+        if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "fill ")) {
         char * line_sep = &line[5];
         const char * color = strsep(&line_sep, " ");

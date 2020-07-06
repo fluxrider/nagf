@@ -9,18 +9,19 @@ class GfxReply:
 
   def set(self, data):
     self.data = data
-    self.stat_p = 9
-    print(f'gfx-util: len={len(data)}')
-    print(data)
+    self.stat_p = 10
 
   def focused(self):
-    return data[0] != 0
+    return self.data[0] != 0
+
+  def closing(self):
+    return self.data[1] != 0
 
   def width(self):
-    return self._utils_read_int(1)
+    return self._utils_read_int(2)
 
   def height(self):
-    return self._utils_read_int(5)
+    return self._utils_read_int(6)
 
   def stat(self):
     retval = self._stat()
@@ -52,11 +53,11 @@ class GfxReply:
       #  self.stat_p += 4
       #  return ('loading', f'{loading/1000}')
       return ('ready',)
-    # fps
+    # delta_time
     if t == 3:
-      fps = self._utils_read_int(self.stat_p)
+      delta = self._utils_read_int(self.stat_p)
       self.stat_p += 4
-      return ('fps', f'{fps/1000}')
+      return ('delta', delta / 1000.0)
     # bad msg
     return ('error', 'BAD')
 

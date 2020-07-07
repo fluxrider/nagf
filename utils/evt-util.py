@@ -237,7 +237,32 @@ class Evt:
     v = self.axis_and_triggers(i)[5]
     d = int(255 * deadzone)
     return 0 if v < d else (v - d) / (255 - d)
-    
+
+  # merged left stick and dpad
+  def left(self, i=0, deadzone=.2):
+    x = self.left_axis(i, deadzone)[0]
+    value = 1 if self.held(LEFT) else 0
+    value += -x if x < 0 else 0
+    return min(1, value)
+
+  def right(self, i=0, deadzone=.2):
+    x = self.left_axis(i, deadzone)[0]
+    value = 1 if self.held(RIGHT) else 0
+    value += x if x > 0 else 0
+    return min(1, value)
+
+  def up(self, i=0, deadzone=.2):
+    y = self.left_axis(i, deadzone)[1]
+    value = 1 if self.held(UP) else 0
+    value += -y if y < 0 else 0
+    return min(1, value)
+
+  def down(self, i=0, deadzone=.2):
+    y = self.left_axis(i, deadzone)[1]
+    value = 1 if self.held(DOWN) else 0
+    value += y if y > 0 else 0
+    return min(1, value)
+
   # context managers interface
   def __enter__(self):
     return self

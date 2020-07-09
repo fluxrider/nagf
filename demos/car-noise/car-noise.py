@@ -9,6 +9,8 @@ import math
 import random
 import contextlib
 import importlib
+import threading
+import traceback
 srr = importlib.import_module('libsrr.srr')
 Evt = importlib.import_module('utils.evt-util')
 gfx_reply = importlib.import_module('utils.gfx-util').GfxReply(True)
@@ -41,11 +43,51 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
   bounce_loss = .9
   turning_duration = 0 # for squeal purposes
   squealing = False
+  closing = False
+  tick = 0
+
+  # car noise thread
+  def noise():
+    global closing
+    try:
+      shm_path = '/car-noise-snd-1'
+      with srr.srr(shm_path, is_server=True) as server:
+        print(f'raw {shm_path} 1 1', file=snd, flush=True)
+        while not closing:
+          N = int.from_bytes(bytearray(server.receive()), byteorder=sys.byteorder, signed=False)
+          samples_per_second = 8000
+          wave = []
+          if squealing:
+            hz = 180 - acceleration_lenth/2 + int(tick * 1000) % 20
+            n = int((samples_per_second / hz) / 2)
+            # triangle wave?
+            for i in range(0, n * 2):
+              wave.append(int(i * 127 / n))
+          else:
+            hz = 6 + acceleration_lenth * 1.2
+            # square wave
+            n = int((samples_per_second / hz) / 2)
+            for i in range(0, n):
+              wave.append(127)
+            for i in range(0, n):
+              wave.append(129) # -127
+          # write it to fit N (with overshoot)
+          data = []
+          while N > 0:
+            data.extend(wave)
+            N -= n
+          server.reply(bytearray(data))
+        server.receive()
+        server.reply([])
+    except Exception as e:
+      print(e)
+      traceback.print_tb(e.__traceback__)
+      closing = True
+  threading.Thread(target=noise, daemon=True).start()
 
   # game loop
   delta = 0
   focused = True
-  closing = False
   while not closing:
     evt.poll('' if focused else 'no-focus-mode')
     closing |= evt.pressed(Evt.ESC)
@@ -79,8 +121,8 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
     acceleration_z -= (acceleration_z * accel_decay * delta)
     
     # tire squeal
-    acceleration_lenth2 = acceleration_x * acceleration_x + acceleration_z * acceleration_z
-    if turning == 0 or acceleration_lenth2 < 13*13 or math.copysign(1, turning) != math.copysign(1, turning_duration):
+    acceleration_lenth = math.sqrt(acceleration_x * acceleration_x + acceleration_z * acceleration_z)
+    if turning == 0 or acceleration_lenth < 13 or math.copysign(1, turning) != math.copysign(1, turning_duration):
       turning_duration = 0
     turning_duration += delta * turning
     squealing = abs(turning_duration) > .4
@@ -96,3 +138,4 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
     focused = gfx_reply.focused()
     closing |= gfx_reply.closing()
     delta = gfx_reply.stat()[1]
+    tick += delta

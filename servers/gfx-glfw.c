@@ -360,10 +360,10 @@ static void * handle_fifo_loop(void * vargp) {
           double p2 = strtod(strsep(&line_sep, " "), NULL);
           if(!line_sep) {
             struct { float x, y; float s, t; } vertices[4] = {
-              { p1, p2, 0,0 },
-              { p1, p2 + res->h, 0,1 },
-              { p1 + res->w, p2 + res->h, 1,1 },
-              { p1 + res->w, p2, 1,0 }
+              { p1, p2,                    0,0 },
+              { p1, p2 + res->h,           0,1 },
+              { p1 + res->w, p2 + res->h,  1,1 },
+              { p1 + res->w, p2,           1,0 }
             };
             vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
           } else {
@@ -372,10 +372,10 @@ static void * handle_fifo_loop(void * vargp) {
             double p4 = strtod(strsep(&line_sep, " "), NULL);
             if(!line_sep) {
               struct { float x, y; float s, t; } vertices[4] = {
-                { p1, p2, 0,0 },
-                { p1, p2 + p4, 0,1 },
-                { p1 + p3, p2 + p4, 1,1 },
-                { p1 + p3, p2, 1,0 }
+                { p1, p2,            0,0 },
+                { p1, p2 + p4,       0,1 },
+                { p1 + p3, p2 + p4,  1,1 },
+                { p1 + p3, p2,       1,0 }
               };
               vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
             } else {
@@ -383,21 +383,22 @@ static void * handle_fifo_loop(void * vargp) {
               double p5 = strtod(strsep(&line_sep, " "), NULL);
               double p6 = strtod(strsep(&line_sep, " "), NULL);
               if(!line_sep) {
+                // w/ half pixel correction
                 struct { float x, y; float s, t; } vertices[4] = {
-                  { p5, p6, p1 / res->w, p2 / res->h },
-                  { p5, p6 + p4, p1 / res->w, (p2 + p4) / res->h },
-                  { p5 + p3, p6 + p4, (p1 + p3) / res->w, (p2 + p4) / res->h },
-                  { p5 + p3, p6, (p1 + p3) / res->w, p2 / res->h }
+                  { p5, p6,            (p1 + .5) / res->w, (p2 + .5) / res->h },
+                  { p5, p6 + p4,       (p1 + .5) / res->w, (p2 + p4 - 0) / res->h },
+                  { p5 + p3, p6 + p4,  (p1 + p3 - 0) / res->w, (p2 + p4 - 0) / res->h },
+                  { p5 + p3, p6,       (p1 + p3 - 0) / res->w, (p2 + .5) / res->h }
                 };
                 vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
               } else {
                 const char * tmp = strsep(&line_sep, " ");
                 if(strcmp(tmp, "mx") == 0) {
                   struct { float x, y; float s, t; } vertices[4] = {
-                    { p5, p6, (p1 + p3) / res->w, p2 / res->h },
-                    { p5, p6 + p4, (p1 + p3) / res->w, (p2 + p4) / res->h },
-                    { p5 + p3, p6 + p4, p1 / res->w, (p2 + p4) / res->h },
-                    { p5 + p3, p6, p1 / res->w, p2 / res->h }
+                    { p5, p6,            (p1 + p3 - 0) / res->w, (p2 + .5) / res->h },
+                    { p5, p6 + p4,       (p1 + p3 - 0) / res->w, (p2 + p4 - 0) / res->h },
+                    { p5 + p3, p6 + p4,  (p1 + .5) / res->w, (p2 + p4 - 0) / res->h },
+                    { p5 + p3, p6,       (p1 + .5) / res->w, (p2 + .5) / res->h }
                   };
                   vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                 } else {
@@ -405,10 +406,10 @@ static void * handle_fifo_loop(void * vargp) {
                   double p7 = strtod(tmp, NULL);
                   double p8 = strtod(strsep(&line_sep, " "), NULL);
                   struct { float x, y; float s, t; } vertices[4] = {
-                    { p5, p6, p1 / res->w, p2 / res->h },
-                    { p5, p6 + p8, p1 / res->w, (p2 + p4) / res->h },
-                    { p5 + p7, p6 + p8, (p1 + p3) / res->w, (p2 + p4) / res->h },
-                    { p5 + p7, p6, (p1 + p3) / res->w, p2 / res->h }
+                    { p5, p6,            (p1 + .5) / res->w, (p2 + .5) / res->h },
+                    { p5, p6 + p8,       (p1 + .5) / res->w, (p2 + p4 - 0) / res->h },
+                    { p5 + p7, p6 + p8,  (p1 + p3 - 0) / res->w, (p2 + p4 - 0) / res->h },
+                    { p5 + p7, p6,       (p1 + p3 - 0) / res->w, (p2 + .5) / res->h }
                   };
                   vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                 }

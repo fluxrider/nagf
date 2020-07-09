@@ -4,7 +4,7 @@
  * file `LICENSE` for more details.
  */
 uniform mat4 model;
-uniform mat4 view;
+//uniform mat4 view;
 uniform mat4 projection;
 
 attribute vec2 vertex;
@@ -14,5 +14,6 @@ void main()
 {
     gl_TexCoord[0].xy = tex_coord.xy;
     gl_FrontColor     = color;
-    gl_Position       = projection*(view*(model*vec4(vertex, 0.0, 1.0)));
+    //gl_Position       = projection*(view*(model*vec4(vertex, 0.0, 1.0)));
+    gl_Position       = projection*(model*vec4(vertex, 0.0, 1.0));
 }

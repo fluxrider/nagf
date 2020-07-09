@@ -176,10 +176,9 @@ static void * handle_fifo_loop(void * vargp) {
   vertex_buffer_t * font_buffer = NULL;
 
   // matrices
-  mat4 model, view, projection;
+  mat4 model, projection;
   mat4_set_identity(&projection);
   mat4_set_identity(&model);
-  mat4_set_identity(&view);
 
   while(t->running) {
     FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("GFX error: fopen"); exit(EXIT_FAILURE); }
@@ -202,15 +201,31 @@ static void * handle_fifo_loop(void * vargp) {
         if(sem_wait(&t->flush_post) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
         // flush our drawing to the screen
         if(t->running) {
-          // TODO black bars
           glfwSwapBuffers(t->window);
           glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
-          glClearColor(.5, .5, .5, 1); // tmp
-          glClear(GL_COLOR_BUFFER_BIT); // tmp
-          // TODO viewport respect aspect ratio with logical W/H
+          glClearColor(.5, .5, .5, 1); // TODO only do this on resize
+          glClear(GL_COLOR_BUFFER_BIT); // TODO only do this on resize
+          // TODO viewport respect aspect ratio with logical W/H only on resize
           int width, height;
           glfwGetFramebufferSize(t->window, &width, &height);
-          glViewport(0, 0, width, height);
+          // respect aspect ratio (i.e. black bars)
+          double a = t->W / (double) t->H;
+          double A = width / (double) height;
+          int offsetX = 0;
+          int offsetY = 0;
+          int aspectW = width;
+          int aspectH = height;
+          // top/down black bars
+          if(a / A > 1) {
+            aspectH = width * t->H / t->W;
+            offsetY = (height - aspectH) / 2;
+          }
+          // left/right black bars
+          else {
+            aspectW = height * t->W / t->H;
+            offsetX = (width - aspectW) / 2;
+          }
+          glViewport(offsetX, offsetY, aspectW, aspectH);
           mat4_set_orthographic(&projection, 0, t->W, t->H, 0, -1, 1);
         }
       } else if(str_equals(line, "hq")) {
@@ -414,7 +429,6 @@ static void * handle_fifo_loop(void * vargp) {
           glUseProgram(font_shader);
           glUniform1i(glGetUniformLocation(font_shader, "texture"), 0);
           glUniformMatrix4fv(glGetUniformLocation(font_shader, "model"), 1, 0, model.data);
-          glUniformMatrix4fv(glGetUniformLocation(font_shader, "view"), 1, 0, view.data);
           glUniformMatrix4fv(glGetUniformLocation(font_shader, "projection"), 1, 0, projection.data);
           glBindTexture(GL_TEXTURE_2D, res->atlas->id);
           

@@ -32,7 +32,7 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
   x = W / 2
   z = H / 2
   r = 10
-  speed = 2 # meters per seconds
+  speed = 2 # pixel per seconds
   turn_speed = 3 # angle per seconds (rad)
   facing = 0 # angle (rad)
   acceleration_x = 0
@@ -43,7 +43,7 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
   squealing = False
 
   # game loop
-  delta = 1
+  delta = 0
   focused = True
   closing = False
   while not closing:
@@ -86,8 +86,11 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
     squealing = abs(turning_duration) > .4
 
     print(f'fill 808080 0 0 {W} {H}', file=gfx, flush=True)
+    print(f'push rotate {x} {z} {facing}', file=gfx, flush=True)
     print(f'fill 0000FF {x - r} {z - r} {2*r} {2*r}', file=gfx, flush=True)
-    print(f'text {font} 0 0 {W} {H} bottom left {int(H/16)} noclip 0 ffffff 000000 1 ms:{int(delta*1000)} fps:{1.0/delta:.1f}', file=gfx, flush=True)
+    print(f'fill 00FFFF {x} {z-.5} {r} {1}', file=gfx, flush=True)
+    print(f'pop', file=gfx, flush=True)
+    if delta > 0: print(f'text {font} 0 0 {W} {H} bottom left {int(H/16)} noclip 0 ffffff 000000 1 ms:{int(delta*1000)} fps:{1.0/delta:.1f}', file=gfx, flush=True)
     print('flush', file=gfx, flush=True)
     gfx_reply.set(gfx_sync.send('delta'.encode()))
     focused = gfx_reply.focused()

@@ -214,7 +214,7 @@ class gfx_swing {
     Thread fifo = new Thread(new Runnable() {
       public void run() {
         try {
-          AffineTransform stored_at = null;
+          LinkedList<String> stack = new LinkedList<>();
           while(true) {
             String command;
             queue_list.acquire();
@@ -235,7 +235,7 @@ class gfx_swing {
                 if(no_pref) frame.setExtendedState(JFrame.MAXIMIZED_BOTH); 
                 frame.setVisible(true);
               }
-
+              if(!stack.isEmpty()) throw new RuntimeException("stack not empty on flush");
               // on flush, stop handling any more messages until srr thread completes the flush
               flush_pre.release();
               flush_post.acquire();
@@ -260,21 +260,10 @@ class gfx_swing {
               frontbuffer = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
               g = (Graphics2D) backbuffer.getGraphics(); g.addRenderingHints(hints_g);
               _g = (Graphics2D) frontbuffer.getGraphics(); _g.addRenderingHints(hints);
-            } else if(command.startsWith("scale ")) {
-              String [] parts = command.split(" ");
-              double sx = Double.parseDouble(parts[1]);
-              double sy = 2 < parts.length? Double.parseDouble(parts[2]) : sx;
-              if(stored_at != null) throw new RuntimeException("scale isn't a stack, there is only one");
-              synchronized(backbuffer_mutex) {
-                // NOTE: this breaks if there is a hq resize before unscale... not sure if I want to support scaling anyway
-                stored_at = g.getTransform();
-                g.scale(sx, sy);
-              }
-            } else if(command.equals("unscale")) {
-              synchronized(backbuffer_mutex) {
-                g.setTransform(stored_at);
-              }
-              stored_at = null;
+            } else if(command.startsWith("push ")) {
+              stack.push(command.substring(5));
+            } else if(command.equals("pop")) {
+              stack.pop();
             } else if(command.startsWith("cache ")) {
               String path = command.substring(6);
               if(cache.get(path) != null) System.out.println("GFX cache refresh " + path); else {
@@ -343,67 +332,63 @@ class gfx_swing {
               if(c == null) System.out.println("GFX error: null image resource for " + path); else
               if(!(c instanceof BufferedImage)) System.out.println("GFX error: no image resource ready for " + path); else {
                 BufferedImage image = (BufferedImage)c;
-                switch(parts.length) {
-                  // normal: draw path x y
-                  case 4:
-                  {
-                    int x = (int)Double.parseDouble(parts[i++]);
-                    int y = (int)Double.parseDouble(parts[i++]);
-                    synchronized(backbuffer_mutex) {
+                synchronized(backbuffer_mutex) {
+                  AffineTransform t = apply_stack(stack, g);
+                  switch(parts.length) {
+                    // normal: draw path x y
+                    case 4:
+                    {
+                      int x = (int)Double.parseDouble(parts[i++]);
+                      int y = (int)Double.parseDouble(parts[i++]);
                       g.drawImage(image, x, y, null);
                     }
-                  }
-                  break;
-                  // scaled: draw path x y w h
-                  case 6:
-                  {
-                    int x = (int)Double.parseDouble(parts[i++]);
-                    int y = (int)Double.parseDouble(parts[i++]);
-                    int w = (int)Double.parseDouble(parts[i++]);
-                    int h = (int)Double.parseDouble(parts[i++]);
-                    synchronized(backbuffer_mutex) {
+                    break;
+                    // scaled: draw path x y w h
+                    case 6:
+                    {
+                      int x = (int)Double.parseDouble(parts[i++]);
+                      int y = (int)Double.parseDouble(parts[i++]);
+                      int w = (int)Double.parseDouble(parts[i++]);
+                      int h = (int)Double.parseDouble(parts[i++]);
                       g.drawImage(image, x, y, w, h, null);
                     }
-                  }
-                  break;
-                  // region: draw path sx sy w h x y (mx=mirror-x)
-                  case 8:
-                  case 9:
-                  {
-                    int sx = (int)Double.parseDouble(parts[i++]);
-                    int sy = (int)Double.parseDouble(parts[i++]);
-                    int w = (int)Double.parseDouble(parts[i++]);
-                    int h = (int)Double.parseDouble(parts[i++]);
-                    int x = (int)Double.parseDouble(parts[i++]);
-                    int y = (int)Double.parseDouble(parts[i++]);
-                    boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
-                    synchronized(backbuffer_mutex) {
+                    break;
+                    // region: draw path sx sy w h x y (mx=mirror-x)
+                    case 8:
+                    case 9:
+                    {
+                      int sx = (int)Double.parseDouble(parts[i++]);
+                      int sy = (int)Double.parseDouble(parts[i++]);
+                      int w = (int)Double.parseDouble(parts[i++]);
+                      int h = (int)Double.parseDouble(parts[i++]);
+                      int x = (int)Double.parseDouble(parts[i++]);
+                      int y = (int)Double.parseDouble(parts[i++]);
+                      boolean mirror_x = Stream.of(parts).anyMatch(s -> s.equals("mx"));
                       if(mirror_x) {
                         g.drawImage(image, x+w, y, x, y+h, sx, sy, sx+w, sy+h, null);
                       } else {
                         g.drawImage(image, x, y, x+w, y+h, sx, sy, sx+w, sy+h, null);
                       }
                     }
-                  }
-                  break;
-                  // region: draw path sx sy sw sh x y w h
-                  case 10:
-                  {
-                    int sx = (int)Double.parseDouble(parts[i++]);
-                    int sy = (int)Double.parseDouble(parts[i++]);
-                    int sw = (int)Double.parseDouble(parts[i++]);
-                    int sh = (int)Double.parseDouble(parts[i++]);
-                    int x = (int)Double.parseDouble(parts[i++]);
-                    int y = (int)Double.parseDouble(parts[i++]);
-                    int w = (int)Double.parseDouble(parts[i++]);
-                    int h = (int)Double.parseDouble(parts[i++]);
-                    synchronized(backbuffer_mutex) {
+                    break;
+                    // region: draw path sx sy sw sh x y w h
+                    case 10:
+                    {
+                      int sx = (int)Double.parseDouble(parts[i++]);
+                      int sy = (int)Double.parseDouble(parts[i++]);
+                      int sw = (int)Double.parseDouble(parts[i++]);
+                      int sh = (int)Double.parseDouble(parts[i++]);
+                      int x = (int)Double.parseDouble(parts[i++]);
+                      int y = (int)Double.parseDouble(parts[i++]);
+                      int w = (int)Double.parseDouble(parts[i++]);
+                      int h = (int)Double.parseDouble(parts[i++]);
                       g.drawImage(image, x, y, x+w, y+h, sx, sy, sx+sw, sy+sh, null);
                     }
+                    break;
+                    default:
+                      System.out.println("GFX error: bad draw command " + command);
                   }
-                  break;
-                  default:
-                    System.out.println("GFX error: bad draw command " + command);
+                  g.setTransform(t);
                 }
               }
             } else if(command.startsWith("text ")) {
@@ -435,6 +420,7 @@ class gfx_swing {
               text.setLength​(text.length() - 1);
 
               synchronized(backbuffer_mutex) {
+                AffineTransform t = apply_stack(stack, g);
                 // get font size
                 FontRenderContext frc = g.getFontRenderContext();
                 Object c = cache.get(path);
@@ -444,15 +430,15 @@ class gfx_swing {
                   font = font.deriveFont((float)(line_height * (tight? 1.29 : 1))); // TODO loop instead of magic number that probably doesn't work?
 
                   // break explicit \n into multiple lines
-                  String t = text.toString();
+                  String te = text.toString();
                   List<String> lines = new ArrayList<>();
-                  int escape = t.indexOf​("\\n");
+                  int escape = te.indexOf​("\\n");
                   while(escape != -1) {
                     lines.add(text.substring(0, escape));
-                    t = text.substring(escape + 2);
-                    escape = t.indexOf​("\\n");
+                    te = text.substring(escape + 2);
+                    escape = te.indexOf​("\\n");
                   }
-                  lines.add(t);
+                  lines.add(te);
 
                   // text to glyph, break lines and repeat
                   ListIterator<String> itr = lines.listIterator();
@@ -507,6 +493,7 @@ class gfx_swing {
                     g.setClip(clip);
                   }
                 }
+                g.setTransform(t);
               }
             } else if(command.startsWith("fill ")) {
               String [] parts = command.split(" ");
@@ -516,8 +503,10 @@ class gfx_swing {
               double w = Double.parseDouble(parts[4]);
               double h = Double.parseDouble(parts[5]);
               synchronized(backbuffer_mutex) {
+                AffineTransform t = apply_stack(stack, g);
                 g.setColor(fill);
                 g.fillRect((int)x, (int)y, (int)w, (int)h);
+                g.setTransform(t);
               }
             }
           }
@@ -673,4 +662,25 @@ class gfx_swing {
     }
     return null;
   }
+  
+  private static AffineTransform apply_stack(List<String> stack, Graphics2D g) {
+    AffineTransform retval = g.getTransform();
+    for(String s : stack) {
+      String [] parts = s.split(" ");
+      switch(parts[0]) {
+        case "rotate": {
+          double x = Double.parseDouble(parts[1]);
+          double y = Double.parseDouble(parts[2]);
+          double theta = Double.parseDouble(parts[3]);
+          g.rotate(theta, x, y);
+          break;
+        }
+        default:
+          System.out.println("GFX warning, unknown transform on stack: " + s);
+          break;
+      }
+    }
+    return retval; // caller has to call g.setTransform(retval) after it's draw;
+  }
+
 }

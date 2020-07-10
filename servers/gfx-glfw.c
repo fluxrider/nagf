@@ -231,7 +231,6 @@ static void * handle_fifo_loop(void * vargp) {
             offsetX = (width - t->aspectW) / 2;
           }
           glViewport(offsetX, offsetY, t->aspectW, t->aspectH);
-          mat4_set_orthographic(&projection, 0, t->W, t->H, 0, -1, 1);
         }
       } else if(str_equals(line, "hq")) {
         printf("GFX fifo hq\n");
@@ -252,6 +251,7 @@ static void * handle_fifo_loop(void * vargp) {
           t->preferred_W = 0;
           t->preferred_H = 0;
         }
+        mat4_set_orthographic(&projection, 0, t->W, t->H, 0, -1, 1);
         // create window
         glfwSetErrorCallback(glfw_error_callback);
         printf("GFX glfwInit\n");

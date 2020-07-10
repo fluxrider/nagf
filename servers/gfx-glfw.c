@@ -361,7 +361,7 @@ static void * handle_fifo_loop(void * vargp) {
           glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
           glBindTexture(GL_TEXTURE_2D, res->texture);
           // half-pixel correction-ish to reduce chance of filtering artefact
-          double fudge = .1;
+          double fudge = 0;
           GLuint indices[6] = {0,1,2, 0,2,3};
           double p1 = strtod(strsep(&line_sep, " "), NULL);
           double p2 = strtod(strsep(&line_sep, " "), NULL);

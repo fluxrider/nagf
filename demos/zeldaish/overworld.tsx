@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.2" tiledversion="1.3.5" name="overworld" tilewidth="16" tileheight="16" tilecount="1440" columns="40">
- <image source="overworld.CC0.ArMM1998.png" width="640" height="576"/>
+<tileset version="1.4" tiledversion="1.4.1" name="overworld" tilewidth="16" tileheight="16" spacing="2" margin="1" tilecount="1440" columns="40">
+ <image source="overworld.clamp.CC0.ArMM1998.png" width="720" height="648"/>
  <tile id="6" type="block"/>
  <tile id="7" type="block"/>
  <tile id="8" type="block"/>

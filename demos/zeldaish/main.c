@@ -132,7 +132,7 @@ void main(int argc, char * argv[]) {
   dict_set(&items, "spell", "scroll-thunder.CC0.pixel-boy.png");
   for(int i = 0; i < items.size; i++) dprintf(gfx, "cache %s\n", dict_get_by_index(&items, i));
   // for sake of demo, also preload the known tileset file
-  dprintf(gfx, "cache overworld.CC0.ArMM1998.png\n");
+  dprintf(gfx, "cache overworld.clamp.CC0.ArMM1998.png\n");
 
   // map
   const int TS = 16;
@@ -613,8 +613,9 @@ void main(int argc, char * argv[]) {
             }
             int x = TS * col;
             int y = TS * row + HUD_H;
-            int tx = TS * (tile % tileset_columns);
-            int ty = TS * (tile / tileset_columns);
+            const int margin = 1;
+            int tx = margin + (TS + 2 * margin) * (tile % tileset_columns);
+            int ty = margin + (TS + 2 * margin) * (tile / tileset_columns);
             dprintf(gfx, "draw %s %d %d %d %d %d %d\n", tileset_image, tx, ty, TS, TS, x, y);
           }
         }

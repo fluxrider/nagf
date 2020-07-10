@@ -50,13 +50,12 @@ struct res {
   };
 };
 
-static void add_text(vertex_buffer_t * buffer, double fw, double fh, texture_font_t * font_with_atlas, const char * text, vec4 * color, double x, double y) {
+static void add_text(vertex_buffer_t * buffer, double fw, double fh, texture_font_t * font, const char * text, vec4 * color, double x, double y) {
   size_t i;
   float r = color->red, g = color->green, b = color->blue, a = color->alpha;
   size_t len = strlen(text);
   for(i = 0; i < len; ++i) {
-    //texture_glyph_t * glyph_metrics = texture_font_get_glyph(font_with_metrics, text + i);
-    texture_glyph_t * glyph = texture_font_get_glyph(font_with_atlas, text + i);
+    texture_glyph_t * glyph = texture_font_get_glyph(font, text + i);
     if(glyph) {
       float kerning = i > 0? texture_glyph_get_kerning( glyph, text + i - 1 ) : 0.0f;
       x += kerning * fw;
@@ -64,10 +63,13 @@ static void add_text(vertex_buffer_t * buffer, double fw, double fh, texture_fon
       double y0  = (y - glyph->offset_y * fh);
       double x1  = (x + glyph->offset_x * fw + glyph->width * fw);
       double y1  = (y - glyph->offset_y * fh + glyph->height * fh);
-      float s0 = glyph->s0;
-      float t0 = glyph->t0;
-      float s1 = glyph->s1;
-      float t1 = glyph->t1;
+      // half-pixel correction-ish to reduce chance of filtering artefact
+      double fudge_x = .3 / font->atlas->width;
+      double fudge_y = .3 / font->atlas->height;
+      float s0 = glyph->s0 + fudge_x;
+      float t0 = glyph->t0 + fudge_y;
+      float s1 = glyph->s1 - fudge_x;
+      float t1 = glyph->t1 - fudge_y;
       GLuint indices[6] = {0,1,2, 0,2,3};
       struct { float x, y; float s, t; float r, g, b, a; } vertices[4] = {
         { x0,y0, s0,t0, r,g,b,a },
@@ -358,6 +360,8 @@ static void * handle_fifo_loop(void * vargp) {
           glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_model"), 1, 0, model.data);
           glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
           glBindTexture(GL_TEXTURE_2D, res->texture);
+          // half-pixel correction-ish to reduce chance of filtering artefact
+          double fudge = .1;
           GLuint indices[6] = {0,1,2, 0,2,3};
           double p1 = strtod(strsep(&line_sep, " "), NULL);
           double p2 = strtod(strsep(&line_sep, " "), NULL);
@@ -386,22 +390,21 @@ static void * handle_fifo_loop(void * vargp) {
               double p5 = strtod(strsep(&line_sep, " "), NULL);
               double p6 = strtod(strsep(&line_sep, " "), NULL);
               if(!line_sep) {
-                // w/ half pixel correction
                 struct { float x, y; float s, t; } vertices[4] = {
-                  { p5, p6,            (p1 + .5) / res->w, (p2 + .5) / res->h },
-                  { p5, p6 + p4,       (p1 + .5) / res->w, (p2 + p4 - 0) / res->h },
-                  { p5 + p3, p6 + p4,  (p1 + p3 - 0) / res->w, (p2 + p4 - 0) / res->h },
-                  { p5 + p3, p6,       (p1 + p3 - 0) / res->w, (p2 + .5) / res->h }
+                  { p5, p6,            (p1 + fudge) / res->w, (p2 + fudge) / res->h },
+                  { p5, p6 + p4,       (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                  { p5 + p3, p6 + p4,  (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                  { p5 + p3, p6,       (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h }
                 };
                 vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
               } else {
                 const char * tmp = strsep(&line_sep, " ");
                 if(strcmp(tmp, "mx") == 0) {
                   struct { float x, y; float s, t; } vertices[4] = {
-                    { p5, p6,            (p1 + p3 - 0) / res->w, (p2 + .5) / res->h },
-                    { p5, p6 + p4,       (p1 + p3 - 0) / res->w, (p2 + p4 - 0) / res->h },
-                    { p5 + p3, p6 + p4,  (p1 + .5) / res->w, (p2 + p4 - 0) / res->h },
-                    { p5 + p3, p6,       (p1 + .5) / res->w, (p2 + .5) / res->h }
+                    { p5, p6,            (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h },
+                    { p5, p6 + p4,       (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                    { p5 + p3, p6 + p4,  (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                    { p5 + p3, p6,       (p1 + fudge) / res->w, (p2 + fudge) / res->h }
                   };
                   vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                 } else {
@@ -409,10 +412,10 @@ static void * handle_fifo_loop(void * vargp) {
                   double p7 = strtod(tmp, NULL);
                   double p8 = strtod(strsep(&line_sep, " "), NULL);
                   struct { float x, y; float s, t; } vertices[4] = {
-                    { p5, p6,            (p1 + .5) / res->w, (p2 + .5) / res->h },
-                    { p5, p6 + p8,       (p1 + .5) / res->w, (p2 + p4 - 0) / res->h },
-                    { p5 + p7, p6 + p8,  (p1 + p3 - 0) / res->w, (p2 + p4 - 0) / res->h },
-                    { p5 + p7, p6,       (p1 + p3 - 0) / res->w, (p2 + .5) / res->h }
+                    { p5, p6,            (p1 + fudge) / res->w, (p2 + fudge) / res->h },
+                    { p5, p6 + p8,       (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                    { p5 + p7, p6 + p8,  (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                    { p5 + p7, p6,       (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h }
                   };
                   vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                 }

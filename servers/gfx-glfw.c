@@ -500,8 +500,11 @@ static void * handle_fifo_loop(void * vargp) {
             font->rendermode = RENDER_OUTLINE_EDGE;
             add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &outline, x, y + line_height);
           }
-          // TODO only upload atlas if it changed
-          glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
+          // upload atlas if it changed
+          if(res->atlas->dirty) {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
+            res->atlas->dirty = 0;
+          }
           vertex_buffer_render(font_buffer, GL_TRIANGLES); // TODO delay
           vertex_buffer_clear(font_buffer);
         }

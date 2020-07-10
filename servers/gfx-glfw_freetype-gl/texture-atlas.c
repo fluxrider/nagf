@@ -47,6 +47,8 @@ texture_atlas_new( const size_t width,
                  "line %d: No more memory for allocating data\n", __LINE__ );
         exit( EXIT_FAILURE );
     }
+    
+    self->dirty = 0; // NAGF improvement
 
     return self;
 }
@@ -99,6 +101,7 @@ texture_atlas_set_region( texture_atlas_t * self,
         memcpy( self->data+((y+i)*self->width + x ) * charsize * depth,
                 data + (i*stride) * charsize, width * charsize * depth  );
     }
+    self->dirty = 1; // NAGF improvement
 }
 
 

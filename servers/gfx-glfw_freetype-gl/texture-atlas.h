@@ -109,6 +109,9 @@ typedef struct texture_atlas_t
      * Atlas data
      */
     unsigned char * data;
+    
+    // NAGF improvement
+    unsigned dirty;
 
 } texture_atlas_t;
 

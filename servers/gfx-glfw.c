@@ -179,6 +179,7 @@ static void * handle_fifo_loop(void * vargp) {
   vertex_buffer_t * fill_buffer = NULL;
   vertex_buffer_t * img_buffer = NULL;
   vertex_buffer_t * font_buffer = NULL;
+  int old_w = 0, old_h = 0;
 
   // matrices
   mat4 model, projection;
@@ -208,29 +209,48 @@ static void * handle_fifo_loop(void * vargp) {
         if(t->running) {
           glfwSwapBuffers(t->window);
           glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
-          glClearColor(.5, .5, .5, 1); // TODO only do this on resize
-          glClear(GL_COLOR_BUFFER_BIT); // TODO only do this on resize
-          // TODO viewport respect aspect ratio with logical W/H only on resize
+          // on resize
           int width, height;
           glfwGetFramebufferSize(t->window, &width, &height);
-          // respect aspect ratio (i.e. black bars)
-          double a = t->W / (double) t->H;
-          double A = width / (double) height;
-          int offsetX = 0;
-          int offsetY = 0;
-          t->aspectW = width;
-          t->aspectH = height;
-          // top/down black bars
-          if(a / A > 1) {
-            t->aspectH = width * t->H / t->W;
-            offsetY = (height - t->aspectH) / 2;
+          if(old_w != width || old_h != height) {
+            old_w = width;
+            old_h = height;
+            // respect aspect ratio (i.e. black bars)
+            glClearColor(0, 0, 0, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
+            double a = t->W / (double) t->H;
+            double A = width / (double) height;
+            int offsetX = 0;
+            int offsetY = 0;
+            t->aspectW = width;
+            t->aspectH = height;
+            // top/down black bars
+            if(a / A > 1) {
+              t->aspectH = width * t->H / t->W;
+              offsetY = (height - t->aspectH) / 2;
+            }
+            // left/right black bars
+            else {
+              t->aspectW = height * t->W / t->H;
+              offsetX = (width - t->aspectW) / 2;
+            }
+            glViewport(offsetX, offsetY, t->aspectW, t->aspectH);
+            // clear all font atlas
+            if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+            for(size_t res_index = 0; res_index < t->cache.size; res_index++) {
+              struct res * res = dict_get_by_index(&t->cache, res_index);
+              if(res->type == GFX_STAT_FNT) {
+                texture_atlas_clear(res->atlas);
+                for(size_t font_index = 0; font_index < res->fonts->size; font_index++) {
+                  texture_font_t * font = dict_get_by_index(res->fonts, font_index);
+                  texture_font_delete(font);
+                }
+                dict_free(res->fonts);
+                dict_init(res->fonts, 0, false, false);
+              }
+            }
+            if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
           }
-          // left/right black bars
-          else {
-            t->aspectW = height * t->W / t->H;
-            offsetX = (width - t->aspectW) / 2;
-          }
-          glViewport(offsetX, offsetY, t->aspectW, t->aspectH);
         }
       } else if(str_equals(line, "hq")) {
         printf("GFX fifo hq\n");

@@ -119,7 +119,7 @@ void main(int argc, char * argv[]) {
   dprintf(gfx, "cache chest_2_open.CC0.crawl-tiles.png\n");
   dict_set(&npc_res, "flame", "dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png"); // 1 to 8
   for(int i = 1; i <= 8; i++) dprintf(gfx, "cache dngn_altar_makhleb_flame%d.CC0.crawl-tiles.png\n", i);
-  dprintf(gfx, "cache princess.png\n");
+  dprintf(gfx, "cache princess.clamp.png\n");
   struct rect collision = {1, 14, 12, 8}; // hard-coded princess collision box
   struct dict items;
   dict_init(&items, 0, true, false);
@@ -666,7 +666,7 @@ void main(int argc, char * argv[]) {
       }
     }
     // draw player
-    dprintf(gfx, "draw princess.png %d %d 14 24 %f %f %s\n", facing_frame * 14, facing_index * 24, px, py + HUD_H, facing_mirror? "mx" : "");
+    dprintf(gfx, "draw princess.clamp.png %d %d 14 24 %f %f %s\n", 1 + facing_frame * (14 + 2), 1 + facing_index * (24 + 2), px, py + HUD_H, facing_mirror? "mx" : "");
 
     // message box
     if(message) {

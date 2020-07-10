@@ -64,8 +64,8 @@ static void add_text(vertex_buffer_t * buffer, double fw, double fh, texture_fon
       double x1  = (x + glyph->offset_x * fw + glyph->width * fw);
       double y1  = (y - glyph->offset_y * fh + glyph->height * fh);
       // half-pixel correction-ish to reduce chance of filtering artefact
-      double fudge_x = .3 / font->atlas->width;
-      double fudge_y = .3 / font->atlas->height;
+      double fudge_x = 0; // .3 / font->atlas->width;
+      double fudge_y = 0; // .3 / font->atlas->height;
       float s0 = glyph->s0 + fudge_x;
       float t0 = glyph->t0 + fudge_y;
       float s1 = glyph->s1 - fudge_x;
@@ -313,8 +313,8 @@ static void * handle_fifo_loop(void * vargp) {
             glBindTexture(GL_TEXTURE_2D, res.atlas->id);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             dict_set(&t->cache, path, &res);
           } else {
             // cache image TODO async

@@ -50,19 +50,20 @@ struct res {
   };
 };
 
-static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char * text, vec4 * color, double x, double y) {
+static void add_text(vertex_buffer_t * buffer, double fw, double fh, texture_font_t * font_with_atlas, const char * text, vec4 * color, double x, double y) {
   size_t i;
   float r = color->red, g = color->green, b = color->blue, a = color->alpha;
   size_t len = strlen(text);
   for(i = 0; i < len; ++i) {
-    texture_glyph_t *glyph = texture_font_get_glyph(font, text + i);
-    if( glyph != NULL ) {
+    //texture_glyph_t * glyph_metrics = texture_font_get_glyph(font_with_metrics, text + i);
+    texture_glyph_t * glyph = texture_font_get_glyph(font_with_atlas, text + i);
+    if(glyph) {
       float kerning = i > 0? texture_glyph_get_kerning( glyph, text + i - 1 ) : 0.0f;
-      x += kerning;
-      int x0  = (int)(x + glyph->offset_x);
-      int y0  = (int)(y - glyph->offset_y);
-      int x1  = (int)(x + glyph->offset_x + glyph->width);
-      int y1  = (int)(y - glyph->offset_y + glyph->height);
+      x += kerning * fw;
+      double x0  = (x + glyph->offset_x * fw);
+      double y0  = (y - glyph->offset_y * fh);
+      double x1  = (x + glyph->offset_x * fw + glyph->width * fw);
+      double y1  = (y - glyph->offset_y * fh + glyph->height * fh);
       float s0 = glyph->s0;
       float t0 = glyph->t0;
       float s1 = glyph->s1;
@@ -75,7 +76,7 @@ static void add_text(vertex_buffer_t * buffer, texture_font_t * font, const char
         { x1,y0, s1,t0, r,g,b,a }
       };
       vertex_buffer_push_back( buffer, vertices, 4, indices, 6 );
-      x += glyph->advance_x;
+      x += glyph->advance_x * fw;
     }
   }
 }
@@ -126,6 +127,8 @@ struct shared_amongst_thread_t {
   bool focused;
   int W;
   int H;
+  int aspectW;
+  int aspectH;
   int preferred_W;
   int preferred_H;
   struct dict cache;
@@ -213,19 +216,19 @@ static void * handle_fifo_loop(void * vargp) {
           double A = width / (double) height;
           int offsetX = 0;
           int offsetY = 0;
-          int aspectW = width;
-          int aspectH = height;
+          t->aspectW = width;
+          t->aspectH = height;
           // top/down black bars
           if(a / A > 1) {
-            aspectH = width * t->H / t->W;
-            offsetY = (height - aspectH) / 2;
+            t->aspectH = width * t->H / t->W;
+            offsetY = (height - t->aspectH) / 2;
           }
           // left/right black bars
           else {
-            aspectW = height * t->W / t->H;
-            offsetX = (width - aspectW) / 2;
+            t->aspectW = height * t->W / t->H;
+            offsetX = (width - t->aspectW) / 2;
           }
-          glViewport(offsetX, offsetY, aspectW, aspectH);
+          glViewport(offsetX, offsetY, t->aspectW, t->aspectH);
           mat4_set_orthographic(&projection, 0, t->W, t->H, 0, -1, 1);
         }
       } else if(str_equals(line, "hq")) {
@@ -237,8 +240,8 @@ static void * handle_fifo_loop(void * vargp) {
       } else if(starts_with(line, "window ")) {
         printf("GFX fifo window\n");
         char * line_sep = &line[7];
-        t->W = strtol(strsep(&line_sep, " "), NULL, 10);
-        t->H = strtol(strsep(&line_sep, " "), NULL, 10);
+        t->W = t->aspectW = strtol(strsep(&line_sep, " "), NULL, 10);
+        t->H = t->aspectH = strtol(strsep(&line_sep, " "), NULL, 10);
         const char * token = strsep(&line_sep, " ");
         if(token) {
           t->preferred_W = strtol(token, NULL, 10);
@@ -455,25 +458,24 @@ static void * handle_fifo_loop(void * vargp) {
           vec4 fill = {{fill_r,fill_g,fill_b,fill_a}};
           
           texture_font_t * font;
-          double font_size = line_height;
-          int font_size_key = (int)(font_size * 1000);
-          if(dict_has(res->fonts, font_size_key)) {
-            font = dict_get(res->fonts, font_size_key);
+          double font_size = line_height * t->aspectH / t->H;
+          int font_key = (int)(font_size * 1000);
+          if(dict_has(res->fonts, font_key)) {
+            font = dict_get(res->fonts, font_key);
           } else {
             font = texture_font_new_from_file(res->atlas, font_size, path);
-            dict_set(res->fonts, font_size_key, font);
+            dict_set(res->fonts, font_key, font);
           }
           
           // TODO line break and font size
+          font->outline_thickness = outline_size;
           {
             font->rendermode = RENDER_OUTLINE_NEGATIVE;
-            font->outline_thickness = outline_size;
-            add_text(font_buffer, font, message, &fill, x, y + line_height);
+            add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &fill, x, y + line_height);
           }
           {
             font->rendermode = RENDER_OUTLINE_EDGE;
-            font->outline_thickness = outline_size;
-            add_text(font_buffer, font, message, &outline, x, y + line_height);
+            add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &outline, x, y + line_height);
           }
           // TODO only upload atlas if it changed
           glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);

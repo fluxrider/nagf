@@ -152,6 +152,7 @@ struct shared_amongst_thread_t {
   bool held[K_COUNT];
   int pressed[K_COUNT];
   bool released[K_COUNT];
+  double axis_and_triggers[6];
 };
 
 static char * str_trim(char * s) {
@@ -178,6 +179,8 @@ static void parse_color(const char * color, double * r, double * g, double * b, 
   color_2[0] = color[i++]; color_2[1] = color[i++];
   *b = strtol(color_2, NULL, 16) / 255.0;
 }
+
+// Keyboard
 
 static struct shared_amongst_thread_t * evt_callback_data = NULL;
 
@@ -279,40 +282,87 @@ void evt_key_callback(GLFWwindow * window, int key, int scancode, int action, in
   if(pthread_mutex_unlock(&evt_callback_data->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
 }
 
-void evt_mkey_callback(GLFWwindow * window, int button, int action, int mods) {
-//  if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
-//      popup_menu();
-}
+// Mouse (not implemented)
 
+void evt_mkey_callback(GLFWwindow * window, int button, int action, int mods) {
+}
 
 void evt_mskey_callback(GLFWwindow * window, double xoffset, double yoffset) {
 }
 
+// Joystick (I merge all joystick into gamepad 0)
+// At this point in time, 2020-07-11, glfw does not have callback for joystick buttons, so I might miss presses when I poll.
+// Issue is 5 years old: https://github.com/glfw/glfw/issues/601
+// At this point in time, 2020-07-11, already connected devices do not generate connect callback on start, so I'd have to do it manually.
+// This would open a short window where a connected device may get this callback twice or none at all.
+// The issue was commented in https://github.com/glfw/glfw/issues/601
+// In any case, I poll all joystick in the main loop after polling event, and merge the results in gamepad 0 so the issues are moot.
+
 void evt_joystick_callback(int jid, int event) {
   if(event == GLFW_CONNECTED) {
+    if(glfwJoystickIsGamepad(jid)) {
+    }
   } else if(event == GLFW_DISCONNECTED) {
-  } else {
   }
 }
 
-/*
-GLFW_JOYSTICK_LAST
-if (glfwJoystickIsGamepad(GLFW_JOYSTICK_2))
-{
-    // Use as gamepad
-}
-GLFWgamepadstate state;
- 
-if (glfwGetGamepadState(GLFW_JOYSTICK_3, &state))
-{
-    if (state.buttons[GLFW_GAMEPAD_BUTTON_A])
-    {
-        input_jump();
+void evt_joystick_poll(struct shared_amongst_thread_t * t) {
+  const int base = G0_R1;
+  const int N = 17;
+  int held[N];
+  memset(held, 0, N * sizeof(int));
+  double axis[6];
+  memset(held, 0, 6 * sizeof(double));
+  // poll each joystick
+  for(int jid = GLFW_JOYSTICK_1; jid <= GLFW_JOYSTICK_LAST; jid++) {
+    // glfw input guide says glfwJoystickIsGamepad can be used instead of glfwJoystickPresent, but it's a lie, you need both
+    if(glfwJoystickPresent(jid) && glfwJoystickIsGamepad(jid)) {
+      GLFWgamepadstate state;
+      if(glfwGetGamepadState(jid, &state)) {
+        held[G0_R1 - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER] == GLFW_PRESS;
+        held[G0_R2 - base] |= state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] > .15;
+        held[G0_R3 - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_RIGHT_THUMB] == GLFW_PRESS;
+        held[G0_L1 - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_LEFT_BUMPER] == GLFW_PRESS;
+        held[G0_L2 - base] |= state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] > .15;
+        held[G0_L3 - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_LEFT_THUMB] == GLFW_PRESS;
+        held[G0_START - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_START] == GLFW_PRESS;
+        held[G0_HOME - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_GUIDE] == GLFW_PRESS;
+        held[G0_SELECT - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_BACK] == GLFW_PRESS;
+        held[G0_NORTH - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_TRIANGLE] == GLFW_PRESS;
+        held[G0_SOUTH - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_CROSS] == GLFW_PRESS;
+        held[G0_EAST - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_CIRCLE] == GLFW_PRESS;
+        held[G0_WEST - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_SQUARE] == GLFW_PRESS;
+        held[G0_UP - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_UP] == GLFW_PRESS;
+        held[G0_DOWN - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_DOWN] == GLFW_PRESS;
+        held[G0_LEFT - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT] == GLFW_PRESS;
+        held[G0_RIGHT - base] |= state.buttons[GLFW_GAMEPAD_BUTTON_DPAD_RIGHT] == GLFW_PRESS;
+        axis[0] += state.axes[GLFW_GAMEPAD_AXIS_LEFT_X];
+        axis[1] += state.axes[GLFW_GAMEPAD_AXIS_LEFT_Y];
+        axis[2] += state.axes[GLFW_GAMEPAD_AXIS_RIGHT_X];
+        axis[3] += state.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y];
+        axis[4] += state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER];
+        axis[5] += state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER];
+      }
     }
- 
-    input_speed(state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER]);
+  }
+
+  if(pthread_mutex_lock(&t->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+  // update buttons
+  for(int k = G0_R1; k <= G0_RIGHT; k++) {
+    bool was_held = t->held[k];
+    bool is_held = held[k - base];
+    if(was_held && !is_held) t->released[k] = true;
+    if(!was_held && is_held) t->pressed[k]++;
+    t->held[k] = is_held;
+  }
+  // update axis_and_triggers
+  for(int i = 0; i < 6; i++) {
+    if(axis[i] > 1) axis[i] = 1;
+    if(axis[i] < -1) axis[i] = -1;
+    t->axis_and_triggers[i] = axis[i];
+  }
+  if(pthread_mutex_unlock(&t->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
 }
-*/
 
 static void flush_font_buffer(GLuint shader, mat4 * model, mat4 * projection, texture_atlas_t * atlas, vertex_buffer_t * buffer) {
   glUseProgram(shader);
@@ -405,6 +455,7 @@ static void * handle_fifo_loop(void * vargp) {
           if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
           glfwSwapBuffers(t->window);
           glfwPollEvents();
+          evt_joystick_poll(t);
           // on resize
           int width, height;
           glfwGetFramebufferSize(t->window, &width, &height);
@@ -924,6 +975,7 @@ static void * handle_evt_srr_loop(void * vargp) {
         (t->held[index_a] << 7) | (t->pressed[index_a] << 5) | (t->released[index_a] << 4) |
         (t->held[index_b] << 3) | (t->pressed[index_b] << 1) | t->released[index_b];
       t->pressed[index_a] = t->pressed[index_b] = 0;
+      t->released[index_a] = t->released[index_b] = 0;
     }
     // 4 x mouse 3 bytes format (dx, dy, dw)
     memset(mem->msg + i, 0, 3); i += 3;
@@ -931,7 +983,13 @@ static void * handle_evt_srr_loop(void * vargp) {
     memset(mem->msg + i, 0, 3); i += 3;
     memset(mem->msg + i, 0, 3); i += 3;
     // 4 x gamepad axis and triggers 6 bytes format (lx, ly, rx, ry, lt, rt)
-    memset(mem->msg + i, 0, 6); i += 6;
+    //memset(mem->msg + i, 0, 6); i += 6;
+    mem->msg[i++] = t->axis_and_triggers[0] * 127;
+    mem->msg[i++] = t->axis_and_triggers[1] * 127;
+    mem->msg[i++] = t->axis_and_triggers[2] * 127;
+    mem->msg[i++] = t->axis_and_triggers[3] * 127;
+    mem->msg[i++] = t->axis_and_triggers[4] * 255;
+    mem->msg[i++] = t->axis_and_triggers[5] * 255;
     memset(mem->msg + i, 0, 6); i += 6;
     memset(mem->msg + i, 0, 6); i += 6;
     memset(mem->msg + i, 0, 6); i += 6;

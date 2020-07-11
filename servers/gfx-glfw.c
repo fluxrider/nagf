@@ -173,6 +173,21 @@ static void parse_color(const char * color, double * r, double * g, double * b, 
   *b = strtol(color_2, NULL, 16) / 255.0;
 }
 
+static void flush_font_buffer(GLuint shader, mat4 * model, mat4 * projection, texture_atlas_t * atlas, vertex_buffer_t * buffer) {
+  glUseProgram(shader);
+  glUniform1i(glGetUniformLocation(shader, "texture"), 0);
+  glUniformMatrix4fv(glGetUniformLocation(shader, "model"), 1, 0, model->data);
+  glUniformMatrix4fv(glGetUniformLocation(shader, "projection"), 1, 0, projection->data);
+  glBindTexture(GL_TEXTURE_2D, atlas->id);
+  // upload atlas if it changed
+  if(atlas->dirty) {
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlas->width, atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, atlas->data);
+    atlas->dirty = 0;
+  }
+  vertex_buffer_render(buffer, GL_TRIANGLES);
+  vertex_buffer_clear(buffer);
+}
+
 static void flush_img_buffer(GLuint shader, mat4 * model, mat4 * projection, GLuint tex_id, vertex_buffer_t * buffer) {
   //printf("flush_img_buffer\n");
   glUseProgram(shader);
@@ -200,6 +215,7 @@ static void * handle_fifo_loop(void * vargp) {
   vertex_buffer_t * img_buffer = NULL;
   vertex_buffer_t * font_buffer = NULL;
   int img_buffer_texture_id = 0;
+  texture_atlas_t * font_buffer_atlas = NULL;
   int old_w = 0, old_h = 0;
   int line_buffer_capacity = 1;
   char ** lines_ptr = reallocarray(NULL, line_buffer_capacity, sizeof(char *));
@@ -231,6 +247,7 @@ static void * handle_fifo_loop(void * vargp) {
         // flush our drawing to the screen
         if(t->running) {
           if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
+          if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
           glfwSwapBuffers(t->window);
           glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
           // on resize
@@ -391,6 +408,7 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "draw ")) {
+        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
         char * line_sep = &line[5];
         // normal: draw path x y
         const char * path = strsep(&line_sep, " ");
@@ -471,12 +489,8 @@ static void * handle_fifo_loop(void * vargp) {
         if(dict_has(&t->cache, path)) {
           // text font x y w h valign halign line_count clip scroll outline_color fill_color outline_size message
           struct res * res = dict_get(&t->cache, path);
-          glUseProgram(font_shader);
-          glUniform1i(glGetUniformLocation(font_shader, "texture"), 0);
-          glUniformMatrix4fv(glGetUniformLocation(font_shader, "model"), 1, 0, model.data);
-          glUniformMatrix4fv(glGetUniformLocation(font_shader, "projection"), 1, 0, projection.data);
-          glBindTexture(GL_TEXTURE_2D, res->atlas->id);
-          
+          if(vertex_buffer_size(font_buffer) && font_buffer_atlas != res->atlas) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
+          font_buffer_atlas = res->atlas;
           bool tight = starts_with(line_sep, "tight ");
           if(tight) strsep(&line_sep, " ");
           double x = strtod(strsep(&line_sep, " "), NULL);
@@ -568,19 +582,12 @@ static void * handle_fifo_loop(void * vargp) {
               add_text(font_buffer, fw, fh, font, lines_ptr[i], &outline, tx, y + line_height);
               y += line_height;
             }
-            
-            // upload atlas if it changed
-            if(res->atlas->dirty) {
-              glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
-              res->atlas->dirty = 0;
-            }
-            vertex_buffer_render(font_buffer, GL_TRIANGLES); // TODO delay
-            vertex_buffer_clear(font_buffer);
           }
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "fill ")) {
         if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
+        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
         char * line_sep = &line[5];
         const char * color = strsep(&line_sep, " ");
         double r, g, b, a;
@@ -601,7 +608,8 @@ static void * handle_fifo_loop(void * vargp) {
           { x+w,y }
         };
         vertex_buffer_push_back(fill_buffer, vertices, 4, indices, 6);
-        vertex_buffer_render(fill_buffer, GL_TRIANGLES); // TODO delay render
+        // TODO to do batch draw for color, I'll first need to put the color in the vertex array
+        vertex_buffer_render(fill_buffer, GL_TRIANGLES);
         vertex_buffer_clear(fill_buffer);
       }
     }

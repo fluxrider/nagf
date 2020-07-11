@@ -57,9 +57,9 @@ static double add_text(vertex_buffer_t * buffer, double fw, double fh, texture_f
   uint32_t prev = 0;
   while(*text) {
     uint32_t current = *text; // TODO the freetype-gl demos are pretty bad concerning codepoint/utf-8. They assume 1 byte per glyph.
-    texture_glyph_t * glyph = texture_font_get_glyph(font, &current);
+    texture_glyph_t * glyph = texture_font_get_glyph(font, (const char *)&current);
     if(glyph) {
-      float kerning = prev? texture_glyph_get_kerning(glyph, &prev) : 0.0f;
+      float kerning = prev? texture_glyph_get_kerning(glyph, (const char *)&prev) : 0.0f;
       x += kerning * fw;
       if(buffer) {
         double x0  = (x + glyph->offset_x * fw);
@@ -501,43 +501,69 @@ static void * handle_fifo_loop(void * vargp) {
           }
           
           // line break
-          const char * message = line_sep;
-          /*
-          int line_buffer_size = 0;
-          while(message && *message) {
-            // store start of line
-            if(line_buffer_size == line_buffer_capacity) {
-              line_buffer_capacity *= 2;
-              lines_ptr = reallocarray(lines_ptr, line_buffer_capacity, sizeof(char *));
-              line_widths = reallocarray(line_widths, line_buffer_capacity, sizeof(int));
-            }
-            lines_ptr[line_buffer_size] = message;
-            const char * good = message;
-            // find next space, \\n or \0
-            const char * search = message;
-            while(*search != ' ' && *search != '\0' && strcmp(search, "\\n") != 0) search++;
-            // did we bust? fallback to previous word
-            
-            line_widths[line_buffer_size] = 0;
-            line_buffer_size++;
-          }
-*/
-          // render
           font->outline_thickness = outline_size;
-          font->rendermode = RENDER_OUTLINE_NEGATIVE;
-          add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &fill, x, y + line_height);
           font->rendermode = RENDER_OUTLINE_EDGE;
-          add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &outline, x, y + line_height);
-          
-          y += line_height;
-          
-          // upload atlas if it changed
-          if(res->atlas->dirty) {
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
-            res->atlas->dirty = 0;
+          double fw = t->W / (double)t->aspectW;
+          double fh = t->H / (double)t->aspectH;
+          char * message = line_sep;
+          if(message) {
+            int line_ptr_count = 0;
+            while(*message) {
+              // store start of line
+              if(line_ptr_count == line_buffer_capacity) {
+                line_buffer_capacity *= 2;
+                lines_ptr = reallocarray(lines_ptr, line_buffer_capacity, sizeof(char *));
+                line_widths = reallocarray(line_widths, line_buffer_capacity, sizeof(int));
+              }
+              lines_ptr[line_ptr_count] = message;
+              int line_width = 0;
+              char * search = message;
+              char * good_end = search;
+              // TODO assumes w != 0
+              while(line_width <= w) {
+                good_end = search;
+                line_widths[line_ptr_count] = line_width;
+                // did we reach end of line
+                if(*search == '\0') break;
+                if(strcmp(search, "\\n") == 0) break;
+                if(*search == ' ') search++;
+                // find next space, \\n or \0
+                while(*search != ' ' && *search != '\0' && strcmp(search, "\\n") != 0) search++;
+                char stored = *search; *search = '\0';
+                // measure
+                line_width = add_text(NULL, fw, fh, font, message, NULL, 0, 0);
+                *search = stored;
+                // did the first word bust? we did our best.
+                if(line_width > w && good_end == message) {
+                  good_end = search;
+                  line_widths[line_ptr_count] = line_width;
+                }
+              }
+              // did we reach end of line
+              if(*good_end == '\0') message = good_end;
+              if(*good_end == ' ') message = good_end + 1;
+              if(strcmp(good_end, "\\n") == 0) message = good_end + 2;
+              *good_end = '\0';
+              line_ptr_count++;
+            }
+
+            // render
+            for(int i = 0; i < line_ptr_count; i++) {
+              font->rendermode = RENDER_OUTLINE_NEGATIVE;
+              add_text(font_buffer, fw, fh, font, lines_ptr[i], &fill, x, y + line_height);
+              font->rendermode = RENDER_OUTLINE_EDGE;
+              add_text(font_buffer, fw, fh, font, lines_ptr[i], &outline, x, y + line_height);
+              y += line_height;
+            }
+            
+            // upload atlas if it changed
+            if(res->atlas->dirty) {
+              glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);
+              res->atlas->dirty = 0;
+            }
+            vertex_buffer_render(font_buffer, GL_TRIANGLES); // TODO delay
+            vertex_buffer_clear(font_buffer);
           }
-          vertex_buffer_render(font_buffer, GL_TRIANGLES); // TODO delay
-          vertex_buffer_clear(font_buffer);
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "fill ")) {

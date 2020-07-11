@@ -238,7 +238,15 @@ static void * handle_fifo_loop(void * vargp) {
         if(t->first_flush) {
           // show window
           bool no_pref = t->preferred_W == 0;
-          // TODO stretch window if(no_pref) frame.setExtendedState(JFrame.MAXIMIZED_BOTH); 
+          if(no_pref) {
+            GLFWmonitor * monitor = glfwGetPrimaryMonitor();
+            if(monitor) {
+              const GLFWvidmode * mode = glfwGetVideoMode(monitor);
+              glfwSetWindowMonitor(t->window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+            }
+          } else {
+            glfwSetWindowMonitor(t->window, NULL, 0, 0, t->preferred_W, t->preferred_H, 0);
+          }
           glfwShowWindow(t->window); // TODO This function must only be called from the main thread (for portability).
         }
         // on flush, stop handling any more messages until srr thread completes the flush

@@ -50,37 +50,44 @@ struct res {
   };
 };
 
-static void add_text(vertex_buffer_t * buffer, double fw, double fh, texture_font_t * font, const char * text, vec4 * color, double x, double y) {
+static double add_text(vertex_buffer_t * buffer, double fw, double fh, texture_font_t * font, const char * text, vec4 * color, double x, double y) {
   size_t i;
-  float r = color->red, g = color->green, b = color->blue, a = color->alpha;
-  size_t len = strlen(text);
-  for(i = 0; i < len; ++i) {
-    texture_glyph_t * glyph = texture_font_get_glyph(font, text + i);
+  float r, g, b, a;
+  if(color) { r = color->red; g = color->green; b = color->blue; a = color->alpha; }
+  uint32_t prev = 0;
+  while(*text) {
+    uint32_t current = *text; // TODO the freetype-gl demos are pretty bad concerning codepoint/utf-8. They assume 1 byte per glyph.
+    texture_glyph_t * glyph = texture_font_get_glyph(font, &current);
     if(glyph) {
-      float kerning = i > 0? texture_glyph_get_kerning( glyph, text + i - 1 ) : 0.0f;
+      float kerning = prev? texture_glyph_get_kerning(glyph, &prev) : 0.0f;
       x += kerning * fw;
-      double x0  = (x + glyph->offset_x * fw);
-      double y0  = (y - glyph->offset_y * fh);
-      double x1  = (x + glyph->offset_x * fw + glyph->width * fw);
-      double y1  = (y - glyph->offset_y * fh + glyph->height * fh);
-      // half-pixel correction-ish to reduce chance of filtering artefact
-      double fudge_x = 0; // .3 / font->atlas->width;
-      double fudge_y = 0; // .3 / font->atlas->height;
-      float s0 = glyph->s0 + fudge_x;
-      float t0 = glyph->t0 + fudge_y;
-      float s1 = glyph->s1 - fudge_x;
-      float t1 = glyph->t1 - fudge_y;
-      GLuint indices[6] = {0,1,2, 0,2,3};
-      struct { float x, y; float s, t; float r, g, b, a; } vertices[4] = {
-        { x0,y0, s0,t0, r,g,b,a },
-        { x0,y1, s0,t1, r,g,b,a },
-        { x1,y1, s1,t1, r,g,b,a },
-        { x1,y0, s1,t0, r,g,b,a }
-      };
-      vertex_buffer_push_back( buffer, vertices, 4, indices, 6 );
+      if(buffer) {
+        double x0  = (x + glyph->offset_x * fw);
+        double y0  = (y - glyph->offset_y * fh);
+        double x1  = (x + glyph->offset_x * fw + glyph->width * fw);
+        double y1  = (y - glyph->offset_y * fh + glyph->height * fh);
+        // half-pixel correction-ish to reduce chance of filtering artefact
+        double fudge_x = 0; // .3 / font->atlas->width;
+        double fudge_y = 0; // .3 / font->atlas->height;
+        float s0 = glyph->s0 + fudge_x;
+        float t0 = glyph->t0 + fudge_y;
+        float s1 = glyph->s1 - fudge_x;
+        float t1 = glyph->t1 - fudge_y;
+        GLuint indices[6] = {0,1,2, 0,2,3};
+        struct { float x, y; float s, t; float r, g, b, a; } vertices[4] = {
+          { x0,y0, s0,t0, r,g,b,a },
+          { x0,y1, s0,t1, r,g,b,a },
+          { x1,y1, s1,t1, r,g,b,a },
+          { x1,y0, s1,t0, r,g,b,a }
+        };
+        vertex_buffer_push_back( buffer, vertices, 4, indices, 6 );
+      }
       x += glyph->advance_x * fw;
     }
+    prev = current;
+    text++;
   }
+  return x;
 }
 
 static GLuint shader_load_from_src(const char * vert_source, const char * frag_source) {
@@ -180,6 +187,9 @@ static void * handle_fifo_loop(void * vargp) {
   vertex_buffer_t * img_buffer = NULL;
   vertex_buffer_t * font_buffer = NULL;
   int old_w = 0, old_h = 0;
+  int line_buffer_capacity = 1;
+  char ** lines_ptr = reallocarray(NULL, line_buffer_capacity, sizeof(char *));
+  int * line_widths = reallocarray(NULL, line_buffer_capacity, sizeof(int));
 
   // matrices
   mat4 model, projection;
@@ -475,11 +485,11 @@ static void * handle_fifo_loop(void * vargp) {
           parse_color(strsep(&line_sep, " "), &outline_r, &outline_g, &outline_b, &outline_a);
           parse_color(strsep(&line_sep, " "), &fill_r, &fill_g, &fill_b, &fill_a);
           double outline_size = strtod(strsep(&line_sep, " "), NULL);
-          const char * message = line_sep;
           double line_height = h / line_count;
           vec4 outline = {{outline_r,outline_g,outline_b,outline_a}};
           vec4 fill = {{fill_r,fill_g,fill_b,fill_a}};
           
+          // font size
           texture_font_t * font;
           double font_size = line_height * t->aspectH / t->H;
           int font_key = (int)(font_size * 1000);
@@ -490,16 +500,37 @@ static void * handle_fifo_loop(void * vargp) {
             dict_set(res->fonts, font_key, font);
           }
           
-          // TODO line break and font size
+          // line break
+          const char * message = line_sep;
+          /*
+          int line_buffer_size = 0;
+          while(message && *message) {
+            // store start of line
+            if(line_buffer_size == line_buffer_capacity) {
+              line_buffer_capacity *= 2;
+              lines_ptr = reallocarray(lines_ptr, line_buffer_capacity, sizeof(char *));
+              line_widths = reallocarray(line_widths, line_buffer_capacity, sizeof(int));
+            }
+            lines_ptr[line_buffer_size] = message;
+            const char * good = message;
+            // find next space, \\n or \0
+            const char * search = message;
+            while(*search != ' ' && *search != '\0' && strcmp(search, "\\n") != 0) search++;
+            // did we bust? fallback to previous word
+            
+            line_widths[line_buffer_size] = 0;
+            line_buffer_size++;
+          }
+*/
+          // render
           font->outline_thickness = outline_size;
-          {
-            font->rendermode = RENDER_OUTLINE_NEGATIVE;
-            add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &fill, x, y + line_height);
-          }
-          {
-            font->rendermode = RENDER_OUTLINE_EDGE;
-            add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &outline, x, y + line_height);
-          }
+          font->rendermode = RENDER_OUTLINE_NEGATIVE;
+          add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &fill, x, y + line_height);
+          font->rendermode = RENDER_OUTLINE_EDGE;
+          add_text(font_buffer, t->W / (double)t->aspectW, t->H / (double)t->aspectH, font, message, &outline, x, y + line_height);
+          
+          y += line_height;
+          
           // upload atlas if it changed
           if(res->atlas->dirty) {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, res->atlas->width, res->atlas->height, 0, GL_RED, GL_UNSIGNED_BYTE, res->atlas->data);

@@ -173,6 +173,19 @@ static void parse_color(const char * color, double * r, double * g, double * b, 
   *b = strtol(color_2, NULL, 16) / 255.0;
 }
 
+static void flush_img_buffer(GLuint shader, mat4 * model, mat4 * projection, GLuint tex_id, vertex_buffer_t * buffer) {
+  //printf("flush_img_buffer\n");
+  glUseProgram(shader);
+  glUniform1i(glGetUniformLocation(shader, "my_sampler"), 0);
+  glEnable(GL_TEXTURE_2D);
+  glActiveTexture(GL_TEXTURE0);
+  glUniformMatrix4fv(glGetUniformLocation(shader, "my_model"), 1, 0, model->data);
+  glUniformMatrix4fv(glGetUniformLocation(shader, "my_projection"), 1, 0, projection->data);
+  glBindTexture(GL_TEXTURE_2D, tex_id);
+  vertex_buffer_render(buffer, GL_TRIANGLES);
+  vertex_buffer_clear(buffer);
+}
+
 static void * handle_fifo_loop(void * vargp) {
   // this is the 'main' thread as far as glfw goes
   printf("GFX fifo thread\n");
@@ -186,6 +199,7 @@ static void * handle_fifo_loop(void * vargp) {
   vertex_buffer_t * fill_buffer = NULL;
   vertex_buffer_t * img_buffer = NULL;
   vertex_buffer_t * font_buffer = NULL;
+  int img_buffer_texture_id = 0;
   int old_w = 0, old_h = 0;
   int line_buffer_capacity = 1;
   char ** lines_ptr = reallocarray(NULL, line_buffer_capacity, sizeof(char *));
@@ -217,6 +231,7 @@ static void * handle_fifo_loop(void * vargp) {
         if(sem_wait(&t->flush_post) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
         // flush our drawing to the screen
         if(t->running) {
+          if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
           glfwSwapBuffers(t->window);
           glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
           // on resize
@@ -383,13 +398,8 @@ static void * handle_fifo_loop(void * vargp) {
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
         if(dict_has(&t->cache, path)) {
           struct res * res = dict_get(&t->cache, path);
-          glUseProgram(img_shader);
-          glUniform1i(glGetUniformLocation(img_shader, "my_sampler"), 0);
-          glEnable(GL_TEXTURE_2D);
-          glActiveTexture(GL_TEXTURE0);
-          glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_model"), 1, 0, model.data);
-          glUniformMatrix4fv(glGetUniformLocation(img_shader, "my_projection"), 1, 0, projection.data);
-          glBindTexture(GL_TEXTURE_2D, res->texture);
+          if(vertex_buffer_size(img_buffer) && res->texture != img_buffer_texture_id) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
+          img_buffer_texture_id = res->texture;
           // half-pixel correction-ish to reduce chance of filtering artefact
           double fudge = 0;
           GLuint indices[6] = {0,1,2, 0,2,3};
@@ -452,11 +462,10 @@ static void * handle_fifo_loop(void * vargp) {
               }
             }
           }
-          vertex_buffer_render(img_buffer, GL_TRIANGLES); // TODO delay render
-          vertex_buffer_clear(img_buffer);
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "text ")) {
+        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
         char * line_sep = &line[5];
         const char * path = strsep(&line_sep, " ");
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
@@ -572,6 +581,7 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "fill ")) {
+        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
         char * line_sep = &line[5];
         const char * color = strsep(&line_sep, " ");
         double r, g, b, a;

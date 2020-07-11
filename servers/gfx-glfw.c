@@ -220,7 +220,6 @@ static void * handle_fifo_loop(void * vargp) {
         //printf("GFX fifo flush\n");
         // finish setting up window on first flush
         if(t->first_flush) {
-          t->first_flush = false;
           // show window
           bool no_pref = t->preferred_W == 0;
           // TODO stretch window if(no_pref) frame.setExtendedState(JFrame.MAXIMIZED_BOTH); 
@@ -626,8 +625,9 @@ static void * handle_srr_loop(void * vargp) {
 
   // wait for a message from the client
   char _buffer[8193];
-  double t0 = glfwGetTime();
-  double delta_time = 0;
+  double t0;
+  uint64_t monotonic_time_ms;
+  uint64_t monotonic_time_ms_prev;
   while(1) {
     // receive
     error = srr_receive(&server); if(error) { printf("GFX error: srr_receive: %s\n", error); exit(EXIT_FAILURE); }
@@ -645,9 +645,13 @@ static void * handle_srr_loop(void * vargp) {
     // let fifo drain until flush to ensure all drawing have been done
     if(sem_wait(&t->flush_pre) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
     // delta_time
+    if(t->first_flush) {
+      t->first_flush = false;
+      t0 = glfwGetTime();
+      monotonic_time_ms_prev = 0;
+    }
     double t1 = glfwGetTime();
-    delta_time = t1 - t0;
-    t0 = t1;
+    monotonic_time_ms = (t1 - t0) * 1000;
     // let fifo resume
     if(sem_post(&t->flush_post) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
     // parse commands
@@ -656,7 +660,7 @@ static void * handle_srr_loop(void * vargp) {
     while(command = strsep(&buffer, " ")) {
       if(str_equals(command, "delta")) {
         mem->msg[i++] = GFX_STAT_DLT;
-        *((int *)(&mem->msg[i])) = (int)(delta_time * 1000); i+=4;
+        *((int *)(&mem->msg[i])) = (int)(monotonic_time_ms - monotonic_time_ms_prev); i+=4;
       } else if(str_equals(command, "stat")) {
         const char * path = strsep(&buffer, " ");
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
@@ -705,6 +709,7 @@ static void * handle_srr_loop(void * vargp) {
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       }
     }
+    monotonic_time_ms_prev = monotonic_time_ms;
     // reply
     error = srr_reply(&server, i); if(error) { fprintf(stderr, "GFX error: srr_reply: %s\n", error); exit(EXIT_FAILURE); }
     if(!t->running) break;

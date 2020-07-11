@@ -22,6 +22,7 @@
 #include <GLFW/glfw3.h>
 #include "srr.h"
 #include "gfx-util.h"
+#include "evt-util.h"
 #include "data-util.h"
 
 static void glfw_error_callback(int error, const char * description) {
@@ -132,6 +133,7 @@ static bool str_equals(const char * s, const char * s2) {
 struct shared_amongst_thread_t {
   GLFWwindow * window;
   const char * srr_path;
+  const char * evt_srr_path;
   bool running;
   bool focused;
   int W;
@@ -736,6 +738,61 @@ static void * handle_srr_loop(void * vargp) {
   return NULL;
 }
 
+static void * handle_evt_srr_loop(void * vargp) {
+  struct shared_amongst_thread_t * t = vargp;
+
+  // connect
+  printf("EVT starting srr %s\n", t->evt_srr_path);
+  const char * error;
+  struct srr server;
+  error = srr_init(&server, t->evt_srr_path, 8192, true, false, 3); if(error) { printf("EVT error: srr_init: %s\n", error); exit(EXIT_FAILURE); }
+  struct srr_direct * mem = srr_direct(&server);
+
+  // wait for a message from the client
+  char _buffer[8193];
+  while(1) {
+    // receive
+    error = srr_receive(&server); if(error) { printf("EVT error: srr_receive: %s\n", error); exit(EXIT_FAILURE); }
+    // copy message, because the reply will overwrite it as we parse
+    memcpy(_buffer, mem->msg, mem->length);
+    _buffer[mem->length] = '\0';
+    // read commands
+    char * buffer = _buffer;
+    char * command;
+    bool joystick_only = false;
+    while(command = strsep(&buffer, " ")) {
+      if(str_equals(command, "no-focus-mode")) {
+        joystick_only = true;
+      }
+    }
+    // build reply
+    int i = 0;
+    // keys/buttons (1 x keyboard, 4 x mouse, 4 x gamepads) 4 bits format (held:1 press_count:2 released:1)
+    memset(mem->msg + i, 0, K_COUNT/2); i += K_COUNT/2;
+    // 4 x mouse 3 bytes format (dx, dy, dw)
+    memset(mem->msg + i, 0, 3); i += 3;
+    memset(mem->msg + i, 0, 3); i += 3;
+    memset(mem->msg + i, 0, 3); i += 3;
+    memset(mem->msg + i, 0, 3); i += 3;
+    // 4 x gamepad axis and triggers 6 bytes format (lx, ly, rx, ry, lt, rt)
+    memset(mem->msg + i, 0, 6); i += 6;
+    memset(mem->msg + i, 0, 6); i += 6;
+    memset(mem->msg + i, 0, 6); i += 6;
+    memset(mem->msg + i, 0, 6); i += 6;
+    // histo key 16 bytes (key ids) followed by 16 bits (press/release)
+    memset(mem->msg + i, KEY_NONE, 16); i += 16;
+    mem->msg[i++] = 0;
+    mem->msg[i++] = 0;
+    // reply
+    error = srr_reply(&server, i); if(error) { fprintf(stderr, "EVT error: srr_reply: %s\n", error); exit(EXIT_FAILURE); }
+    if(!t->running) break;
+  }
+
+  error = srr_disconnect(&server); if(error) { fprintf(stderr, "EVT error: srr_disconnect: %s\n", error); exit(EXIT_FAILURE); }
+  if(sem_post(&t->should_quit) == -1) { perror("EVT error: sem_post"); exit(EXIT_FAILURE); }
+  return NULL;
+}
+
 int main(int argc, char** argv) {
   struct shared_amongst_thread_t * t = malloc(sizeof(struct shared_amongst_thread_t)); // place it on heap, as it is unclear is threads can properly access stack var
   t->window = NULL;
@@ -757,13 +814,22 @@ int main(int argc, char** argv) {
 
   // create srr server in another thread and listen to messages
   printf("GFX srr\n");
-  if(argc != 2) { fprintf(stderr, "GFX error: must specify the srr shm name as arg\n"); exit(EXIT_FAILURE); }
+  if(argc < 2) { fprintf(stderr, "GFX error: must specify the srr shm name as arg\n"); exit(EXIT_FAILURE); }
   t->srr_path = argv[1];
   pthread_t srr_thread;
   pthread_create(&srr_thread, NULL, handle_srr_loop, t);
 
+  // create evt srr server in another thread and listen to messages
+  printf("EVT srr\n");
+  if(argc < 3) { printf("GFX/EVT not using evt in glfw solution.\n"); }
+  else {
+    t->evt_srr_path = argv[2];
+    pthread_t evt_srr_thread;
+    pthread_create(&evt_srr_thread, NULL, handle_evt_srr_loop, t);
+  }
+
   // wait for signal to quit
-  if(sem_wait(&t->should_quit) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
+  if(sem_wait(&t->should_quit) == -1) { perror("GFX/EVT error: sem_wait"); exit(EXIT_FAILURE); }
 
   // cleanup
   //texture_font_delete(font);
@@ -778,7 +844,7 @@ int main(int argc, char** argv) {
   pthread_mutex_destroy(&t->cache_mutex);
   if(sem_destroy(&t->flush_pre) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
   if(sem_destroy(&t->flush_post) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
-  if(sem_destroy(&t->should_quit) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
+  if(sem_destroy(&t->should_quit) == -1) { perror("GFX/EVT error: sem_destroy"); exit(EXIT_FAILURE); }
   free(t);
   return EXIT_SUCCESS;
 }

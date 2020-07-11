@@ -42,12 +42,12 @@ struct evt_mouse * evt_mouse(struct srr * evt, int i) {
 
 struct evt_axis_and_triggers_raw * evt_axis_and_triggers(struct srr * evt, int i) {
   if(i < 0 || i >= G_COUNT) { fprintf(stderr, "Bad virtual gamepad index (%d). Must be between 0 and %d.", i, M_COUNT-1); return NULL; }
-  int index = ((K_COUNT + (2-1)) / 2) + M_COUNT * 3 + i * 6; // where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
+  int index = ((K_COUNT + (2-1)) / 2) + M_COUNT * 3 + i * 6; // where 3 is (mx, my, mw) and 6 is (lx, ly, rx, ry, lt, rt)
   return (struct evt_axis_and_triggers_raw *)&srr_direct(evt)->msg[index];
 }
 
 int * evt_histokey(struct srr * evt, int pressed[16]) {
-  int index = ((K_COUNT + (2-1)) / 2) + M_COUNT * 3 + G_COUNT * 6; // where 3 is (mx, my, mw) and 6 is (lx, lr, rx, ry, lt, rt)
+  int index = ((K_COUNT + (2-1)) / 2) + M_COUNT * 3 + G_COUNT * 6; // where 3 is (mx, my, mw) and 6 is (lx, ly, rx, ry, lt, rt)
   struct srr_direct * mem = srr_direct(evt);
   uint16_t bits = *(uint16_t *)&mem->msg[index + H_COUNT];
   for(int i = 0; i < 16; i++) pressed[i] = ((bits >> (15 - i)) & 1) != 0;

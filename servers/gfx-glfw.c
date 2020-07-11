@@ -525,10 +525,10 @@ static void * handle_fifo_loop(void * vargp) {
                 line_widths[line_ptr_count] = line_width;
                 // did we reach end of line
                 if(*search == '\0') break;
-                if(strcmp(search, "\\n") == 0) break;
+                if(starts_with(search, "\\n")) break;
                 if(*search == ' ') search++;
                 // find next space, \\n or \0
-                while(*search != ' ' && *search != '\0' && strcmp(search, "\\n") != 0) search++;
+                while(*search != ' ' && *search != '\0' && !starts_with(search, "\\n")) search++;
                 char stored = *search; *search = '\0';
                 // measure
                 line_width = add_text(NULL, fw, fh, font, message, NULL, 0, 0);
@@ -542,7 +542,7 @@ static void * handle_fifo_loop(void * vargp) {
               // did we reach end of line
               if(*good_end == '\0') message = good_end;
               if(*good_end == ' ') message = good_end + 1;
-              if(strcmp(good_end, "\\n") == 0) message = good_end + 2;
+              if(starts_with(good_end, "\\n")) message = good_end + 2;
               *good_end = '\0';
               line_ptr_count++;
             }

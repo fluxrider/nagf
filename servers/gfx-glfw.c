@@ -548,11 +548,16 @@ static void * handle_fifo_loop(void * vargp) {
             }
 
             // render
+            if(str_equals(valign, "bottom")) y += h - line_ptr_count * line_height;
+            else if(str_equals(valign, "center")) y += (h - line_ptr_count * line_height) / 2;
             for(int i = 0; i < line_ptr_count; i++) {
+              double tx = x + outline_size;
+              if(str_equals(halign, "right")) tx += w - line_widths[i] - 1 - 2 * outline_size;
+              else if(str_equals(halign, "center")) tx += (w - line_widths[i] - 1 - outline_size) / 2;
               font->rendermode = RENDER_OUTLINE_NEGATIVE;
-              add_text(font_buffer, fw, fh, font, lines_ptr[i], &fill, x, y + line_height);
+              add_text(font_buffer, fw, fh, font, lines_ptr[i], &fill, tx, y + line_height);
               font->rendermode = RENDER_OUTLINE_EDGE;
-              add_text(font_buffer, fw, fh, font, lines_ptr[i], &outline, x, y + line_height);
+              add_text(font_buffer, fw, fh, font, lines_ptr[i], &outline, tx, y + line_height);
               y += line_height;
             }
             

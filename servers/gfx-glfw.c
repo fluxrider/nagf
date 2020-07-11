@@ -148,6 +148,10 @@ struct shared_amongst_thread_t {
   sem_t flush_post;
   sem_t should_quit;
   bool first_flush;
+  pthread_mutex_t evt_mutex;
+  bool held[K_COUNT];
+  int pressed[K_COUNT];
+  bool released[K_COUNT];
 };
 
 static char * str_trim(char * s) {
@@ -174,6 +178,141 @@ static void parse_color(const char * color, double * r, double * g, double * b, 
   color_2[0] = color[i++]; color_2[1] = color[i++];
   *b = strtol(color_2, NULL, 16) / 255.0;
 }
+
+static struct shared_amongst_thread_t * evt_callback_data = NULL;
+
+int evt_translate(int glwf_key) {
+  switch(glwf_key) {
+    case GLFW_KEY_A: return K_A;
+    case GLFW_KEY_B: return K_B;
+    case GLFW_KEY_C: return K_C;
+    case GLFW_KEY_D: return K_D;
+    case GLFW_KEY_E: return K_E;
+    case GLFW_KEY_F: return K_F;
+    case GLFW_KEY_G: return K_G;
+    case GLFW_KEY_H: return K_H;
+    case GLFW_KEY_I: return K_I;
+    case GLFW_KEY_J: return K_J;
+    case GLFW_KEY_K: return K_K;
+    case GLFW_KEY_L: return K_L;
+    case GLFW_KEY_M: return K_M;
+    case GLFW_KEY_N: return K_N;
+    case GLFW_KEY_O: return K_O;
+    case GLFW_KEY_P: return K_P;
+    case GLFW_KEY_Q: return K_Q;
+    case GLFW_KEY_R: return K_R;
+    case GLFW_KEY_S: return K_S;
+    case GLFW_KEY_T: return K_T;
+    case GLFW_KEY_U: return K_U;
+    case GLFW_KEY_V: return K_V;
+    case GLFW_KEY_W: return K_W;
+    case GLFW_KEY_X: return K_X;
+    case GLFW_KEY_Y: return K_Y;
+    case GLFW_KEY_Z: return K_Z;
+    case GLFW_KEY_0: return K_N0;
+    case GLFW_KEY_1: return K_N1;
+    case GLFW_KEY_2: return K_N2;
+    case GLFW_KEY_3: return K_N3;
+    case GLFW_KEY_4: return K_N4;
+    case GLFW_KEY_5: return K_N5;
+    case GLFW_KEY_6: return K_N6;
+    case GLFW_KEY_7: return K_N7;
+    case GLFW_KEY_8: return K_N8;
+    case GLFW_KEY_9: return K_N9;
+    case GLFW_KEY_UP: return K_UP;
+    case GLFW_KEY_DOWN: return K_DOWN;
+    case GLFW_KEY_LEFT: return K_LEFT;
+    case GLFW_KEY_RIGHT: return K_RIGHT;
+    case GLFW_KEY_ESCAPE: return K_ESC;
+    case GLFW_KEY_TAB: return K_TAB;
+    case GLFW_KEY_LEFT_ALT: return K_ALT_L;
+    case GLFW_KEY_RIGHT_ALT: return K_ALT_R;
+    case GLFW_KEY_LEFT_CONTROL: return K_CTRL_L;
+    case GLFW_KEY_RIGHT_CONTROL: return K_CTRL_R;
+    case GLFW_KEY_LEFT_SHIFT: return K_SHIFT_L;
+    case GLFW_KEY_RIGHT_SHIFT: return K_SHIFT_R;
+    case GLFW_KEY_SPACE: return K_SPACE;
+    case GLFW_KEY_F1: return K_F1;
+    case GLFW_KEY_F2: return K_F2;
+    case GLFW_KEY_F3: return K_F3;
+    case GLFW_KEY_F4: return K_F4;
+    case GLFW_KEY_F5: return K_F5;
+    case GLFW_KEY_F6: return K_F6;
+    case GLFW_KEY_F7: return K_F7;
+    case GLFW_KEY_F8: return K_F8;
+    case GLFW_KEY_F9: return K_F9;
+    case GLFW_KEY_F10: return K_F10;
+    case GLFW_KEY_F11: return K_F11;
+    case GLFW_KEY_F12: return K_F12;
+    case GLFW_KEY_ENTER: return K_ENTER;
+    case GLFW_KEY_BACKSPACE: return K_BACKSPACE;
+    case GLFW_KEY_PAGE_UP: return K_PGUP;
+    case GLFW_KEY_PAGE_DOWN: return K_PGDOWN;
+    case GLFW_KEY_GRAVE_ACCENT: return K_GRAVE;
+    case GLFW_KEY_LEFT_BRACKET: return K_BRACE_L;
+    case GLFW_KEY_RIGHT_BRACKET: return K_BRACE_R;
+    case GLFW_KEY_PERIOD: return K_DOT;
+    case GLFW_KEY_SEMICOLON: return K_SEMICOLON;
+    case GLFW_KEY_APOSTROPHE: return K_APOSTROPHE;
+    case GLFW_KEY_BACKSLASH: return K_BACKSLASH;
+    case GLFW_KEY_SLASH: return K_SLASH;
+    case GLFW_KEY_COMMA: return K_COMMA;
+    default: return KEY_NONE;
+  }
+}
+
+void evt_key_callback(GLFWwindow * window, int key, int scancode, int action, int mods) {
+  if(action == GLFW_REPEAT) return;
+  key = evt_translate(key);
+  if(key == KEY_NONE) return;
+
+  if(pthread_mutex_lock(&evt_callback_data->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
+  if(action == GLFW_PRESS) {
+    if(evt_callback_data->held[key]) printf("EVT warning: key %d was already held\n", key);
+    evt_callback_data->held[key] = true;
+    evt_callback_data->pressed[key]++;
+  } else if(action == GLFW_RELEASE) {
+    if(!evt_callback_data->held[key]) printf("EVT warning: key %d was already released\n", key);
+    evt_callback_data->held[key] = false;
+    evt_callback_data->released[key] = true;
+  }
+  if(pthread_mutex_unlock(&evt_callback_data->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
+}
+
+void evt_mkey_callback(GLFWwindow * window, int button, int action, int mods) {
+//  if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+//      popup_menu();
+}
+
+
+void evt_mskey_callback(GLFWwindow * window, double xoffset, double yoffset) {
+}
+
+void evt_joystick_callback(int jid, int event) {
+  if(event == GLFW_CONNECTED) {
+  } else if(event == GLFW_DISCONNECTED) {
+  } else {
+  }
+}
+
+/*
+GLFW_JOYSTICK_LAST
+if (glfwJoystickIsGamepad(GLFW_JOYSTICK_2))
+{
+    // Use as gamepad
+}
+GLFWgamepadstate state;
+ 
+if (glfwGetGamepadState(GLFW_JOYSTICK_3, &state))
+{
+    if (state.buttons[GLFW_GAMEPAD_BUTTON_A])
+    {
+        input_jump();
+    }
+ 
+    input_speed(state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER]);
+}
+*/
 
 static void flush_font_buffer(GLuint shader, mat4 * model, mat4 * projection, texture_atlas_t * atlas, vertex_buffer_t * buffer) {
   glUseProgram(shader);
@@ -204,7 +343,7 @@ static void flush_img_buffer(GLuint shader, mat4 * model, mat4 * projection, GLu
 }
 
 static void * handle_fifo_loop(void * vargp) {
-  // this is the 'main' thread as far as glfw goes
+  // this is the 'main' thread as far as glfw is concerned
   printf("GFX fifo thread\n");
   struct shared_amongst_thread_t * t = vargp;
   char * _line = NULL;
@@ -249,7 +388,13 @@ static void * handle_fifo_loop(void * vargp) {
           } else {
             glfwSetWindowMonitor(t->window, NULL, 0, 0, t->preferred_W, t->preferred_H, 0);
           }
-          glfwShowWindow(t->window); // TODO This function must only be called from the main thread (for portability).
+          glfwShowWindow(t->window);
+          // evt-listener
+          evt_callback_data = t;
+          glfwSetKeyCallback(t->window, evt_key_callback);
+          glfwSetMouseButtonCallback(t->window, evt_mkey_callback);
+          glfwSetScrollCallback(t->window, evt_mskey_callback);
+          glfwSetJoystickCallback(evt_joystick_callback);
         }
         // on flush, stop handling any more messages until srr thread completes the flush
         if(sem_post(&t->flush_pre) == -1) { perror("GFX error: sem_post"); exit(EXIT_FAILURE); }
@@ -259,7 +404,7 @@ static void * handle_fifo_loop(void * vargp) {
           if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
           if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
           glfwSwapBuffers(t->window);
-          glfwPollEvents(); // TODO This function must only be called from the main thread (for portability).
+          glfwPollEvents();
           // on resize
           int width, height;
           glfwGetFramebufferSize(t->window, &width, &height);
@@ -307,7 +452,7 @@ static void * handle_fifo_loop(void * vargp) {
         printf("GFX fifo hq\n");
       } else if(starts_with(line, "title ")) {
         printf("GFX fifo title\n");
-        if(t->window) glfwSetWindowTitle(t->window, &line[6]); // TODO This function must only be called from the main thread (for portability).
+        if(t->window) glfwSetWindowTitle(t->window, &line[6]);
         else title = strdup(&line[6]);
       } else if(starts_with(line, "window ")) {
         printf("GFX fifo window\n");
@@ -326,11 +471,11 @@ static void * handle_fifo_loop(void * vargp) {
         // create window
         glfwSetErrorCallback(glfw_error_callback);
         printf("GFX glfwInit\n");
-        if(!glfwInit()) { fprintf(stderr, "GFX error: glfwInit\n"); exit(EXIT_FAILURE); } // // TODO This function must only be called from the main thread (for portability).
+        if(!glfwInit()) { fprintf(stderr, "GFX error: glfwInit\n"); exit(EXIT_FAILURE); }
         printf("GFX create window\n");
-        glfwWindowHint(GLFW_VISIBLE, GL_FALSE); // TODO This function must only be called from the main thread (for portability).
-        glfwWindowHint(GLFW_RESIZABLE, GL_TRUE); // TODO This function must only be called from the main thread (for portability).
-        t->window = glfwCreateWindow(t->W, t->H, title? title : NULL, NULL, NULL); if(!t->window) { fprintf(stderr, "GFX error: glfwCreateWindow\n"); exit(EXIT_FAILURE); } // TODO This function must only be called from the main thread (for portability).
+        glfwWindowHint(GLFW_VISIBLE, GL_FALSE);
+        glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
+        t->window = glfwCreateWindow(t->W, t->H, title? title : NULL, NULL, NULL); if(!t->window) { fprintf(stderr, "GFX error: glfwCreateWindow\n"); exit(EXIT_FAILURE); }
         glfwMakeContextCurrent(t->window);
         glfwSwapInterval(0); // no-vsync
         printf("GFX glew\n");
@@ -767,8 +912,19 @@ static void * handle_evt_srr_loop(void * vargp) {
     }
     // build reply
     int i = 0;
+    if(pthread_mutex_lock(&t->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
     // keys/buttons (1 x keyboard, 4 x mouse, 4 x gamepads) 4 bits format (held:1 press_count:2 released:1)
-    memset(mem->msg + i, 0, K_COUNT/2); i += K_COUNT/2;
+    // memset(mem->msg + i, 0, K_COUNT/2); i += K_COUNT/2;
+    for(int k = 0; k < K_COUNT / 2; k++) {
+      int index_a = 2 * k;
+      int index_b = index_a + 1;
+      if(t->pressed[index_a] > 3) t->pressed[index_a] = 3;
+      if(t->pressed[index_b] > 3) t->pressed[index_b] = 3;
+      mem->msg[i++] =
+        (t->held[index_a] << 7) | (t->pressed[index_a] << 5) | (t->released[index_a] << 4) |
+        (t->held[index_b] << 3) | (t->pressed[index_b] << 1) | t->released[index_b];
+      t->pressed[index_a] = t->pressed[index_b] = 0;
+    }
     // 4 x mouse 3 bytes format (dx, dy, dw)
     memset(mem->msg + i, 0, 3); i += 3;
     memset(mem->msg + i, 0, 3); i += 3;
@@ -783,6 +939,7 @@ static void * handle_evt_srr_loop(void * vargp) {
     memset(mem->msg + i, KEY_NONE, 16); i += 16;
     mem->msg[i++] = 0;
     mem->msg[i++] = 0;
+    if(pthread_mutex_unlock(&t->evt_mutex)) { fprintf(stderr, "EVT error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
     // reply
     error = srr_reply(&server, i); if(error) { fprintf(stderr, "EVT error: srr_reply: %s\n", error); exit(EXIT_FAILURE); }
     if(!t->running) break;
@@ -794,18 +951,18 @@ static void * handle_evt_srr_loop(void * vargp) {
 }
 
 int main(int argc, char** argv) {
-  struct shared_amongst_thread_t * t = malloc(sizeof(struct shared_amongst_thread_t)); // place it on heap, as it is unclear is threads can properly access stack var
-  t->window = NULL;
+  struct shared_amongst_thread_t * t = calloc(1, sizeof(struct shared_amongst_thread_t)); // place it on heap, as it is unclear is threads can properly access stack var
   t->running = true;
   t->first_flush = true;
   t->focused = true;
   dict_init(&t->cache, sizeof(struct res), true, true);
   if(pthread_mutex_init(&t->cache_mutex, NULL) != 0) { fprintf(stderr, "GFX error: pthread_mutex_init\n"); exit(EXIT_FAILURE); }
+  if(pthread_mutex_init(&t->evt_mutex, NULL) != 0) { fprintf(stderr, "EVT error: pthread_mutex_init\n"); exit(EXIT_FAILURE); }
   if(sem_init(&t->flush_pre, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
   if(sem_init(&t->flush_post, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
   if(sem_init(&t->should_quit, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
 
-  // create fifo and in another thread read its messages
+  // create fifo and in another thread read its messages, this is the 'main' thread as far as glfw is concerned (for evt too)
   printf("GFX fifo\n");
   if(unlink("gfx.fifo") == -1 && errno != ENOENT) { perror("GFX error: unlink"); exit(EXIT_FAILURE); }
   if(mkfifo("gfx.fifo", S_IRUSR | S_IWUSR) == -1) { perror("GFX error: mkfifo"); exit(EXIT_FAILURE); }
@@ -842,6 +999,7 @@ int main(int argc, char** argv) {
   glfwTerminate();
   dict_free(&t->cache);
   pthread_mutex_destroy(&t->cache_mutex);
+  pthread_mutex_destroy(&t->evt_mutex);
   if(sem_destroy(&t->flush_pre) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
   if(sem_destroy(&t->flush_post) == -1) { perror("GFX error: sem_destroy"); exit(EXIT_FAILURE); }
   if(sem_destroy(&t->should_quit) == -1) { perror("GFX/EVT error: sem_destroy"); exit(EXIT_FAILURE); }

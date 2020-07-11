@@ -1,6 +1,14 @@
 # Under Construction
 Not Another Gamedev Framework
 
+## Dep
+base-devel
+glfw-x11
+python-libevdev
+python-watchdog
+python-pip
+pip install bitarray
+
 ## License
 
 The code in this project is written under various licenses. You will find a LICENSE file in each folder where code resides, as well as simple header comment in each source file. By folders it is as follows:

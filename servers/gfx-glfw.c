@@ -29,6 +29,22 @@ static void glfw_error_callback(int error, const char * description) {
   fprintf(stderr, "GFX error: glfw_error_callback %s\n", description); exit(EXIT_FAILURE);
 }
 
+char * load_file(const char * path) {
+  FILE * file = fopen(path, "rb"); if(!file) { perror("GFX/EVT error: fopen"); exit(EXIT_FAILURE); }
+
+  fseek(file, 0L, SEEK_END);
+  long size = ftell(file);
+  rewind(file);
+
+  char * buffer = malloc(size + 1); buffer[size] = '\0';
+  if(!buffer) { fprintf(stderr, "GFX/EVT error: out of memory reading file %s", path); exit(EXIT_FAILURE); }
+
+  if(fread(buffer, size, 1, file) != 1) { fprintf(stderr, "GFX/EVT error: failed to read %s", path); exit(EXIT_FAILURE); }
+
+  fclose(file);
+  return buffer;
+}
+
 struct res {
   uint8_t type;
   union {
@@ -134,6 +150,7 @@ struct shared_amongst_thread_t {
   GLFWwindow * window;
   const char * srr_path;
   const char * evt_srr_path;
+  const char * evt_mappings_path;
   bool running;
   bool focused;
   int W;
@@ -441,6 +458,11 @@ static void * handle_fifo_loop(void * vargp) {
           glfwShowWindow(t->window);
           // evt-listener
           evt_callback_data = t;
+          if(t->evt_mappings_path) {
+            char * mappings = load_file(t->evt_mappings_path);
+            glfwUpdateGamepadMappings(mappings);
+            free(mappings);
+          }
           glfwSetKeyCallback(t->window, evt_key_callback);
           glfwSetMouseButtonCallback(t->window, evt_mkey_callback);
           glfwSetScrollCallback(t->window, evt_mskey_callback);
@@ -1019,6 +1041,7 @@ int main(int argc, char** argv) {
   if(sem_init(&t->flush_pre, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
   if(sem_init(&t->flush_post, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
   if(sem_init(&t->should_quit, 0, 0) == -1) { perror("GFX error: sem_init"); exit(EXIT_FAILURE); }
+  t->evt_mappings_path = argc < 4? NULL : argv[3];
 
   // create fifo and in another thread read its messages, this is the 'main' thread as far as glfw is concerned (for evt too)
   printf("GFX fifo\n");

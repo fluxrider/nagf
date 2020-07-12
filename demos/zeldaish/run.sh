@@ -43,11 +43,12 @@ if [[ -n $1 ]]; then
   LD_LIBRARY_PATH=../../libsrr java -cp ../..:../../servers -Djava.library.path=$(pwd)/../../libsrr gfx_swing /$demo_name-gfx &
   gfx_pid=$!
 else
-  LD_LIBRARY_PATH=../../libsrr ../../servers/gfx-glfw /$demo_name-gfx /$demo_name-evt &
+  ../../tools/fetch_controllerdb.sh > ../../gamecontrollerdb.txt
+  LD_LIBRARY_PATH=../../libsrr ../../servers/gfx-glfw /$demo_name-gfx /$demo_name-evt ../../gamecontrollerdb.txt &
   gfx_pid=$!
   evt_pid=$gfx_pid
 fi
-sleep .5
+sleep 1
 
 echo '---- launch $demo_name ----'
 LD_LIBRARY_PATH=../../libsrr ./$demo_name &

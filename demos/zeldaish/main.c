@@ -170,7 +170,7 @@ void main(int argc, char * argv[]) {
   while(running) {
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
-    running &= !evt_released(&evt, K_ESC);
+    running &= !evt_released(&evt, K_ESC) && !evt_released(&evt, G0_HOME);
     // progress bar
     dprintf(gfx, "fill 000000 0 0 %d %d\n", W, H);
     double w = W * .8;
@@ -420,13 +420,13 @@ void main(int argc, char * argv[]) {
 
     // input
     sprintf(emm->msg, focused? "" : "no-focus-mode"); error = srr_send(&evt, strlen(emm->msg)); if(error) { printf("srr_send(evt): %s\n", error); exit(EXIT_FAILURE); }
-    running &= !evt_released(&evt, K_ESC);
+    running &= !evt_released(&evt, K_ESC) && !evt_released(&evt, G0_HOME);
     // walking
     struct evt_axis_and_triggers_normalized axis = evt_deadzoned(evt_axis_and_triggers(&evt, 0), .2, .2);
-    if(evt_held(&evt, G0_DOWN) || evt_held(&evt, K_S)) axis.ly = fmin(1, axis.ly + 1);
-    if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W)) axis.ly = fmax(-1, axis.ly - 1);
-    if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D)) axis.lx = fmin(1, axis.lx + 1);
-    if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A)) axis.lx = fmax(-1, axis.lx - 1);
+    if(evt_held(&evt, G0_DOWN) || evt_held(&evt, K_S) || evt_held(&evt, K_DOWN)) axis.ly = fmin(1, axis.ly + 1);
+    if(evt_held(&evt, G0_UP) || evt_held(&evt, K_W) || evt_held(&evt, K_UP)) axis.ly = fmax(-1, axis.ly - 1);
+    if(evt_held(&evt, G0_RIGHT) || evt_held(&evt, K_D) || evt_held(&evt, K_RIGHT)) axis.lx = fmin(1, axis.lx + 1);
+    if(evt_held(&evt, G0_LEFT) || evt_held(&evt, K_A) || evt_held(&evt, K_LEFT)) axis.lx = fmax(-1, axis.lx - 1);
     if(axis.lx != 0 || axis.ly != 0) {
       // up/down
       if(fabs(axis.ly) > fabs(axis.lx)) {
@@ -501,7 +501,7 @@ void main(int argc, char * argv[]) {
       if(!blocked_y) py = ny;
     }
     // action button (activate stuff forward, dismiss message box)
-    if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH)) {
+    if(evt_released(&evt, G0_EAST) || evt_released(&evt, G0_SOUTH) || evt_released(&evt, K_X)) {
       // dismiss dialog
       if(message) {
         message = NULL;

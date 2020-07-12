@@ -312,7 +312,7 @@ void evt_joystick_poll(struct shared_amongst_thread_t * t) {
   int held[N];
   memset(held, 0, N * sizeof(int));
   double axis[6];
-  memset(held, 0, 6 * sizeof(double));
+  memset(axis, 0, 6 * sizeof(double));
   // poll each joystick
   for(int jid = GLFW_JOYSTICK_1; jid <= GLFW_JOYSTICK_LAST; jid++) {
     // glfw input guide says glfwJoystickIsGamepad can be used instead of glfwJoystickPresent, but it's a lie, you need both

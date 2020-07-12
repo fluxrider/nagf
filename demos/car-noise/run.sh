@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: if there is a $1, then use gfx-swing.java instead of gfx-glfw.c
+# usage: if there is a $1, then use gfx-swing.java/evt-libevdev.py instead of combo-gfx-evt-glfw.c
 set -e
 trap 'echo SIGINT unblocks this script, but it is recommended to let it finish' SIGINT
 demo_name=${PWD##*/} # basename $PWD
@@ -33,17 +33,19 @@ echo '---- launch servers ----'
 set +e
 PYTHONPATH=../.. LD_LIBRARY_PATH=../../libsrr python -B ../../servers/snd-gstreamer.py &
 snd_pid=$!
-PYTHONPATH=../.. LD_LIBRARY_PATH=../../libsrr python -B ../../servers/evt-libevdev.py /$demo_name-evt ../../example.map &
-evt_pid=$!
 if [[ -n $1 ]]; then
+  PYTHONPATH=../.. LD_LIBRARY_PATH=../../libsrr python -B ../../servers/evt-libevdev.py /$demo_name-evt ../../example.map &
+  evt_pid=$!
   mkfifo gfx.fifo
   LD_LIBRARY_PATH=../../libsrr java -cp ../..:../../servers -Djava.library.path=$(pwd)/../../libsrr gfx_swing /$demo_name-gfx &
+  gfx_pid=$!
 else
-  LD_LIBRARY_PATH=../../libsrr ../../servers/gfx-glfw /$demo_name-gfx &
+  ../../tools/fetch_controllerdb.sh > ../../gamecontrollerdb.txt
+  LD_LIBRARY_PATH=../../libsrr ../../servers/gfx-glfw /$demo_name-gfx /$demo_name-evt ../../gamecontrollerdb.txt &
+  gfx_pid=$!
+  evt_pid=$gfx_pid
 fi
-gfx_pid=$!
-# TODO instead of sleep, check for fifo and shm with timeout?
-sleep .5
+sleep 1
 
 echo '---- launch $demo_name ----'
 PYTHONPATH=../.. LD_LIBRARY_PATH=../../libsrr python -B ./$demo_name.py &

@@ -24,7 +24,7 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
   # setup
   W = 800
   H = 450
-  font = '/usr/share/fonts/TTF/DejaVuSans.ttf'
+  font = '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf'
   print(f'cache {font}', file=gfx, flush=True)
   print('hq', file=gfx, flush=True)
   print('title car-noise', file=gfx, flush=True)

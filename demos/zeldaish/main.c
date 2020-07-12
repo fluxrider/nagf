@@ -54,6 +54,30 @@ bool collides_2D_dx(double px, double py, double pw, double ph, struct rect * q)
   return collides_2D(&p, q);
 }
 
+//[0, 1[
+double bound_cyclic_normalized(double x) {
+  if (x < 0) {
+    if ((int) x - x == 0) return 0;
+    return 1 - bound_cyclic_normalized(-x);
+  }
+  return x - (int) x;
+}
+
+//[0, 1]
+double bound_cyclic_back_and_forth_normalized(double x) {
+  if (x < 0) return bound_cyclic_back_and_forth_normalized(-x);
+  int i = (int) x;
+  double cyclic = bound_cyclic_normalized(x);
+  // if pair
+  if (i % 2 == 0) {
+    return cyclic;
+  }
+  // if odd
+  else {
+    return 1 - cyclic; // this is where if it was 0, now its exactly 1, so the max limit is inclusive
+  }
+}
+
 void main(int argc, char * argv[]) {
   char tmp_buff[256];
 
@@ -164,6 +188,7 @@ void main(int argc, char * argv[]) {
   dict_init(&ignore, 0, true, false);
   bool running = true;
   bool focused = true;
+  uint64_t winner_t0 = -1;
 
   // loading screen
   int progress = 0;
@@ -514,6 +539,9 @@ void main(int argc, char * argv[]) {
           held_item = item_id;
           item_id = NULL;
           dict_set(&ignore, held_item, true);
+          if(strcmp(held_item, dict_get(&items, "heart")) == 0) {
+            winner_t0 = tick;
+          }
         }
       }
       // npc interaction
@@ -591,6 +619,11 @@ void main(int argc, char * argv[]) {
       }
       if(message) dprintf(snd, "volume .3 1\n");
     }
+    
+    // cheat
+    if(evt_released(&evt, K_C)) {
+      held_item = dict_get(&items, "spell");
+    }
 
     // hud
     const int HUD_H = 3 * TS;
@@ -667,7 +700,7 @@ void main(int argc, char * argv[]) {
     }
     // draw player
     dprintf(gfx, "draw princess.clamp.png %d %d 14 24 %f %f %s\n", 1 + facing_frame * (14 + 2), 1 + facing_index * (24 + 2), px, py + HUD_H, facing_mirror? "mx" : "");
-
+    
     // message box
     if(message) {
       double w = W * .8;
@@ -677,6 +710,19 @@ void main(int argc, char * argv[]) {
       double y = (H - HUD_H - h) / 2 + HUD_H;
       dprintf(gfx, "fill 88888888 %f %f %f %f\n", x, y, w, h);
       dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
+    }
+
+    // winner animation
+    if(winner_t0 != -1) {
+      double t = (tick - winner_t0) / 1000.0;
+      t = bound_cyclic_back_and_forth_normalized(t);
+      double cy = (H - HUD_H - TS) / 2 + HUD_H;
+      double cx = (W - TS) / 2;
+      double hw = W / 2;
+      double hh = (H - HUD_H) / 2;
+      for(double theta = 0; theta < 2 * M_PI; theta += M_PI / 5) {
+        dprintf(gfx, "draw %s %f %f\n", held_item, cx + hw * cos(theta) * t, cy + hh * sin(theta) * t);
+      }
     }
 
     // fps

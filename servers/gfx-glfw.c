@@ -430,9 +430,12 @@ static void * handle_fifo_loop(void * vargp) {
   int * line_widths = reallocarray(NULL, line_buffer_capacity, sizeof(int));
 
   // matrices
-  mat4 model, projection;
+  mat4 projection;
   mat4_set_identity(&projection);
-  mat4_set_identity(&model);
+  const int stack_capacity = 20;
+  int stack_index = 0;
+  mat4 model[stack_capacity];
+  mat4_set_identity(&model[stack_index]);
 
   while(t->running) {
     FILE * f = fopen("gfx.fifo", "r"); if(!f) { perror("GFX error: fopen"); exit(EXIT_FAILURE); }
@@ -473,8 +476,8 @@ static void * handle_fifo_loop(void * vargp) {
         if(sem_wait(&t->flush_post) == -1) { perror("GFX error: sem_wait"); exit(EXIT_FAILURE); }
         // flush our drawing to the screen
         if(t->running) {
-          if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
-          if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
+          if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
+          if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model[stack_index], &projection, font_buffer_atlas, font_buffer);
           glfwSwapBuffers(t->window);
           glfwPollEvents();
           evt_joystick_poll(t);
@@ -636,14 +639,14 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "draw ")) {
-        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
+        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model[stack_index], &projection, font_buffer_atlas, font_buffer);
         char * line_sep = &line[5];
         // normal: draw path x y
         const char * path = strsep(&line_sep, " ");
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
         if(dict_has(&t->cache, path)) {
           struct res * res = dict_get(&t->cache, path);
-          if(vertex_buffer_size(img_buffer) && res->texture != img_buffer_texture_id) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
+          if(vertex_buffer_size(img_buffer) && res->texture != img_buffer_texture_id) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
           img_buffer_texture_id = res->texture;
           // half-pixel correction-ish to reduce chance of filtering artefact
           double fudge = 0;
@@ -710,14 +713,14 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "text ")) {
-        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
+        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
         char * line_sep = &line[5];
         const char * path = strsep(&line_sep, " ");
         if(pthread_mutex_lock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_lock\n"); exit(EXIT_FAILURE); }
         if(dict_has(&t->cache, path)) {
           // text font x y w h valign halign line_count clip scroll outline_color fill_color outline_size message
           struct res * res = dict_get(&t->cache, path);
-          if(vertex_buffer_size(font_buffer) && font_buffer_atlas != res->atlas) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
+          if(vertex_buffer_size(font_buffer) && font_buffer_atlas != res->atlas) flush_font_buffer(font_shader, &model[stack_index], &projection, font_buffer_atlas, font_buffer);
           font_buffer_atlas = res->atlas;
           bool tight = starts_with(line_sep, "tight ");
           if(tight) strsep(&line_sep, " ");
@@ -814,8 +817,8 @@ static void * handle_fifo_loop(void * vargp) {
         }
         if(pthread_mutex_unlock(&t->cache_mutex)) { fprintf(stderr, "GFX error: pthread_mutex_unlock\n"); exit(EXIT_FAILURE); }
       } else if(starts_with(line, "fill ")) {
-        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model, &projection, img_buffer_texture_id, img_buffer);
-        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model, &projection, font_buffer_atlas, font_buffer);
+        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
+        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model[stack_index], &projection, font_buffer_atlas, font_buffer);
         char * line_sep = &line[5];
         const char * color = strsep(&line_sep, " ");
         double r, g, b, a;
@@ -826,7 +829,7 @@ static void * handle_fifo_loop(void * vargp) {
         double h = strtod(strsep(&line_sep, " "), NULL);
         glUseProgram(fill_shader);
         glUniform4f(glGetUniformLocation(fill_shader, "my_color"), r, g, b, a);
-        glUniformMatrix4fv(glGetUniformLocation(fill_shader, "my_model"), 1, 0, model.data);
+        glUniformMatrix4fv(glGetUniformLocation(fill_shader, "my_model"), 1, 0, model[stack_index].data);
         glUniformMatrix4fv(glGetUniformLocation(fill_shader, "my_projection"), 1, 0, projection.data);
         GLuint indices[6] = {0,1,2, 0,2,3};
         struct { float x, y; } vertices[4] = {
@@ -839,6 +842,29 @@ static void * handle_fifo_loop(void * vargp) {
         // TODO to do batch draw for color, I'll first need to put the color in the vertex array
         vertex_buffer_render(fill_buffer, GL_TRIANGLES);
         vertex_buffer_clear(fill_buffer);
+      } else if(starts_with(line, "push ")) {
+        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
+        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model[stack_index], &projection, font_buffer_atlas, font_buffer);
+        stack_index++;
+        if(stack_index == stack_capacity) { fprintf(stderr, "stack push too far\n"); exit(EXIT_FAILURE); }
+        memcpy(&model[stack_index], &model[stack_index - 1], sizeof(mat4));
+        
+        char * line_sep = &line[5];
+        const char * transform = strsep(&line_sep, " ");
+        if(str_equals(transform, "rotate")) {
+          double x = strtod(strsep(&line_sep, " "), NULL);
+          double y = strtod(strsep(&line_sep, " "), NULL);
+          double theta = strtod(strsep(&line_sep, " "), NULL);
+          double angle_in_degrees = theta * 180 / M_PI;
+          mat4_translate(&model[stack_index], -x, -y, 0);
+          mat4_rotate(&model[stack_index], angle_in_degrees, 0, 0, 1);
+          mat4_translate(&model[stack_index], x, y, 0);
+        }
+      } else if(str_equals(line, "pop")) {
+        if(stack_index == 0) { fprintf(stderr, "stack pop too far\n"); exit(EXIT_FAILURE); }
+        if(vertex_buffer_size(img_buffer)) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
+        if(vertex_buffer_size(font_buffer)) flush_font_buffer(font_shader, &model[stack_index], &projection, font_buffer_atlas, font_buffer);
+        stack_index--;
       }
     }
     fclose(f);

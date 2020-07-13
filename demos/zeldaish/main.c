@@ -205,7 +205,7 @@ void main(int argc, char * argv[]) {
     dprintf(gfx, "fill 004400 %f %f %f %f\n", x, y, w, h);
     dprintf(gfx, "fill 00ff00 %f %f %f %f\n", x, y, w * (progress / 1000.0), h);
     // progress numeric value
-    dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center center 1 noclip 0 ffffff 000000 1 %.2f\n", x, y, w, h, progress / 1000.0);
+    dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center center 1 noclip 0 ffffff 000000 .2 %.2f\n", x, y, w, h, progress / 1000.0);
     // flush
     dprintf(gfx, "flush\n");
     sprintf(gmm->msg, "statall"); error = srr_send(&gfs, strlen(gmm->msg)); if(error) { printf("srr_send(gfs): %s\n", error); exit(EXIT_FAILURE); }
@@ -709,7 +709,7 @@ void main(int argc, char * argv[]) {
       double x = (W - w) / 2;
       double y = (H - HUD_H - h) / 2 + HUD_H;
       dprintf(gfx, "fill 88888888 %f %f %f %f\n", x, y, w, h);
-      dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center left %d noclip 0 ffffff 000000 1 %s\n", x, y, w, h, n, message);
+      dprintf(gfx, "text DejaVuSans-Bold.ttf %f %f %f %f center left %d noclip 0 ffffff 000000 .2 %s\n", x, y, w, h, n, message);
     }
 
     // winner animation

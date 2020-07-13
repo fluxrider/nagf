@@ -754,7 +754,7 @@ static void * handle_fifo_loop(void * vargp) {
           }
           
           // line break
-          font->outline_thickness = outline_size;
+          font->outline_thickness = outline_size * t->aspectH / t->H;
           font->rendermode = RENDER_OUTLINE_EDGE;
           double fw = t->W / (double)t->aspectW;
           double fh = t->H / (double)t->aspectH;

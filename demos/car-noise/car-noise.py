@@ -25,10 +25,10 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
   W = 800
   H = 450
   font = '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf'
-  print(f'cache {font}', file=gfx, flush=True)
   print('hq', file=gfx, flush=True)
   print('title car-noise', file=gfx, flush=True)
   print(f'window {W} {H} {W} {H}', file=gfx, flush=True)
+  print(f'cache {font}', file=gfx, flush=True)
   
   # states
   x = W / 2

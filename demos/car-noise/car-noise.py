@@ -87,55 +87,60 @@ with open('snd.fifo', 'w') as snd, open('gfx.fifo', 'w') as gfx, Evt.Evt('/car-n
 
   # game loop
   delta = 0
+  fixed = 0.005
   focused = True
+  acceleration_lenth = 0
   while not closing:
     evt.poll('' if focused else 'no-focus-mode')
     closing |= evt.pressed(Evt.ESC)
     
-    # rotate
-    turning = evt.left() - evt.right()
-    facing += turning * -turn_speed * delta
-    # acceleration
-    dz = 0
-    dx = evt.up() - evt.down()
-    # if turning, force a small acceleration
-    if abs(dx) < .3 and turning != 0: dx = .3
-    # reverse driving is slower
-    if dx < 0: dx /= 2
-    # rotate acceleration direction (facing)
-    dx, dz = rotate(dx, dz, facing)
-    
-    # boost
-    if evt.pressed(Evt.G0_EAST):
-      dx *= 50
-      dz *= 50
-    acceleration_x += dx
-    acceleration_z += dz
-    
-    # apply speed
-    x += acceleration_x * speed * delta
-    z += acceleration_z * speed * delta
-    
-    # friction (decay)
-    acceleration_x -= (acceleration_x * accel_decay * delta)
-    acceleration_z -= (acceleration_z * accel_decay * delta)
-    
-    # tire squeal
-    acceleration_lenth = math.sqrt(acceleration_x * acceleration_x + acceleration_z * acceleration_z)
-    if turning == 0 or acceleration_lenth < 13 or math.copysign(1, turning) != math.copysign(1, turning_duration):
-      turning_duration = 0
-    turning_duration += delta * turning
-    squealing = abs(turning_duration) > .4
+    # fixed delta for 2nd degree distance/speed/acceleration physics 
+    while delta >= fixed:
+      delta -= fixed
+      # rotate
+      turning = evt.left() - evt.right()
+      facing += turning * -turn_speed * fixed
+      # acceleration
+      dz = 0
+      dx = evt.up() - evt.down()
+      # if turning, force a small acceleration
+      if abs(dx) < .3 and turning != 0: dx = .3
+      # reverse driving is slower
+      if dx < 0: dx /= 2
+      # rotate acceleration direction (facing)
+      dx, dz = rotate(dx, dz, facing)
+      
+      # boost
+      if evt.pressed(Evt.G0_EAST):
+        dx *= 50
+        dz *= 50
+      acceleration_x += dx
+      acceleration_z += dz
+      
+      # apply speed
+      x += acceleration_x * speed * fixed
+      z += acceleration_z * speed * fixed
+      
+      # friction (decay)
+      acceleration_x -= (acceleration_x * accel_decay * fixed)
+      acceleration_z -= (acceleration_z * accel_decay * fixed)
+      
+      # tire squeal
+      acceleration_lenth = math.sqrt(acceleration_x * acceleration_x + acceleration_z * acceleration_z)
+      if turning == 0 or acceleration_lenth < 13 or math.copysign(1, turning) != math.copysign(1, turning_duration):
+        turning_duration = 0
+      turning_duration += fixed * turning
+      squealing = abs(turning_duration) > .4
 
     print(f'fill 808080 0 0 {W} {H}', file=gfx, flush=True)
     print(f'push rotate {x} {z} {facing}', file=gfx, flush=True)
     print(f'fill 0000FF {x - r} {z - r} {2*r} {2*r}', file=gfx, flush=True)
     print(f'fill 00FFFF {x} {z-.5} {r} {1}', file=gfx, flush=True)
     print(f'pop', file=gfx, flush=True)
-    if delta > 0: print(f'text {font} 0 0 {W} {H} bottom left {int(H/16)} noclip 0 ffffff 000000 1 ms:{int(delta*1000)} fps:{1.0/delta:.1f}', file=gfx, flush=True)
+    print(f'text {font} 0 0 {W} {H} bottom left {int(H/16)} noclip 0 ffffff 000000 1 ms:{int(delta*1000)} fps:{1.0/delta if delta > 0 else float("inf"):.1f}', file=gfx, flush=True)
     print('flush', file=gfx, flush=True)
     gfx_reply.set(gfx_sync.send('delta'.encode()))
     focused = gfx_reply.focused()
     closing |= gfx_reply.closing()
-    delta = gfx_reply.stat()[1]
+    delta += gfx_reply.stat()[1]
     tick += delta

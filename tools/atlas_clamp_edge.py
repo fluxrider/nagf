@@ -1,7 +1,7 @@
 # Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later.
 # python -B atlas_clamp_edge.py in.png out.png 16 16
 
-# This script adds a 1 pixel clamp_edge margin to every tiles in the atlas
+# This script adds a 1 pixel clamp_edge margin to every tiles in the atlas, except the actual edges
 import os
 import sys
 from PIL import Image
@@ -14,6 +14,8 @@ th = int(sys.argv[4])
 
 in_image = Image.open(input_file)
 w, h = in_image.size
+
+# first do it for all tiles
 
 C = int(w / tw)
 R = int(h / th)
@@ -44,8 +46,9 @@ for r in range(R):
     out_image.putpixel((x+tw,y-1), out_image.getpixel((x+tw-1, y)))
     out_image.putpixel((x+tw,y+th), out_image.getpixel((x+tw-1, y+th-1)))
 
-#data = numpy.zeros((H, W, 4), dtype=numpy.uint8)
-#data[0:256, 0:256] = [255, 0, 0] # red patch in upper left
-#image = Image.fromarray(data, 'RGBA')
+# crop out the superflous edges
+good = out_image.crop((1,1,W-1, H-1))
+out_image = Image.new(in_image.mode, (W-2, H-2))
+out_image.paste(good, (0, 0, W-2, H-2))
 
 out_image.save(output_file)

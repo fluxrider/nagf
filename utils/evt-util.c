@@ -10,7 +10,7 @@
 #define G_COUNT 4
 #define H_COUNT 16
 
-static int _get_half_byte(struct srr_direct * mem, int key) {
+static unsigned _get_half_byte(struct srr_direct * mem, int key) {
   if(key < 0 || key >= K_COUNT) { fprintf(stderr, "Unknown key (%d).", key); return 0; }
   int v = mem->msg[key / 2];
   if(key % 2 == 0) v = v >> 4;

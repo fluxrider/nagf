@@ -696,16 +696,27 @@ static void * handle_fifo_loop(void * vargp) {
                   };
                   vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                 } else {
-                  // region: draw path sx sy sw sh x y w h
+                  // region: draw path sx sy sw sh x y w h (mx=mirror-x)
                   double p7 = strtod(tmp, NULL);
                   double p8 = strtod(strsep(&line_sep, " "), NULL);
-                  struct { float x, y; float s, t; } vertices[4] = {
-                    { p5, p6,            (p1 + fudge) / res->w, (p2 + fudge) / res->h },
-                    { p5, p6 + p8,       (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                    { p5 + p7, p6 + p8,  (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                    { p5 + p7, p6,       (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h }
-                  };
-                  vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+                  bool mx = line_sep;
+                  if(mx) {
+                    struct { float x, y; float s, t; } vertices[4] = {
+                      { p5, p6,            (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h },
+                      { p5, p6 + p8,       (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                      { p5 + p7, p6 + p8,  (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                      { p5 + p7, p6,       (p1 + fudge) / res->w, (p2 + fudge) / res->h }
+                    };
+                    vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+                  } else {
+                    struct { float x, y; float s, t; } vertices[4] = {
+                      { p5, p6,            (p1 + fudge) / res->w, (p2 + fudge) / res->h },
+                      { p5, p6 + p8,       (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                      { p5 + p7, p6 + p8,  (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
+                      { p5 + p7, p6,       (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h }
+                    };
+                    vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
+                  }
                 }
               }
             }

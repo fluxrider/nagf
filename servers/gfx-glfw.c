@@ -648,8 +648,6 @@ static void * handle_fifo_loop(void * vargp) {
           struct res * res = dict_get(&t->cache, path);
           if(vertex_buffer_size(img_buffer) && res->texture != img_buffer_texture_id) flush_img_buffer(img_shader, &model[stack_index], &projection, img_buffer_texture_id, img_buffer);
           img_buffer_texture_id = res->texture;
-          // half-pixel correction-ish to reduce chance of filtering artefact
-          double fudge = 0;
           GLuint indices[6] = {0,1,2, 0,2,3};
           double p1 = strtod(strsep(&line_sep, " "), NULL);
           double p2 = strtod(strsep(&line_sep, " "), NULL);
@@ -679,41 +677,48 @@ static void * handle_fifo_loop(void * vargp) {
               double p6 = strtod(strsep(&line_sep, " "), NULL);
               if(!line_sep) {
                 struct { float x, y; float s, t; } vertices[4] = {
-                  { p5, p6,            (p1 + fudge) / res->w, (p2 + fudge) / res->h },
-                  { p5, p6 + p4,       (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                  { p5 + p3, p6 + p4,  (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                  { p5 + p3, p6,       (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h }
+                  { p5, p6,            (p1) / res->w, (p2) / res->h },
+                  { p5, p6 + p4,       (p1) / res->w, (p2 + p4) / res->h },
+                  { p5 + p3, p6 + p4,  (p1 + p3) / res->w, (p2 + p4) / res->h },
+                  { p5 + p3, p6,       (p1 + p3) / res->w, (p2) / res->h }
                 };
                 vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
               } else {
                 const char * tmp = strsep(&line_sep, " ");
                 if(strcmp(tmp, "mx") == 0) {
                   struct { float x, y; float s, t; } vertices[4] = {
-                    { p5, p6,            (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h },
-                    { p5, p6 + p4,       (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                    { p5 + p3, p6 + p4,  (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                    { p5 + p3, p6,       (p1 + fudge) / res->w, (p2 + fudge) / res->h }
+                    { p5, p6,            (p1 + p3) / res->w, (p2) / res->h },
+                    { p5, p6 + p4,       (p1 + p3) / res->w, (p2 + p4) / res->h },
+                    { p5 + p3, p6 + p4,  (p1) / res->w, (p2 + p4) / res->h },
+                    { p5 + p3, p6,       (p1) / res->w, (p2) / res->h }
                   };
                   vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                 } else {
-                  // region: draw path sx sy sw sh x y w h (mx=mirror-x)
+                  // region: draw path sx sy sw sh x y w h (mx=mirror-x) (texture_offset_x)
                   double p7 = strtod(tmp, NULL);
                   double p8 = strtod(strsep(&line_sep, " "), NULL);
-                  bool mx = line_sep;
+                  bool mx = false;
+                  double texture_offset_x = 0;
+                  if(line_sep) {
+                    tmp = strsep(&line_sep, " ");
+                    mx = strcmp(tmp, "mx") == 0;
+                    if(!mx) texture_offset_x = strtod(tmp, NULL);
+                    else if(line_sep) texture_offset_x = strtod(strsep(&line_sep, " "), NULL);
+                  }
                   if(mx) {
                     struct { float x, y; float s, t; } vertices[4] = {
-                      { p5, p6,            (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h },
-                      { p5, p6 + p8,       (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                      { p5 + p7, p6 + p8,  (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                      { p5 + p7, p6,       (p1 + fudge) / res->w, (p2 + fudge) / res->h }
+                      { p5, p6,            (p1 + p3) / res->w, (p2) / res->h },
+                      { p5, p6 + p8,       (p1 + p3) / res->w, (p2 + p4) / res->h },
+                      { p5 + p7, p6 + p8,  (p1) / res->w, (p2 + p4) / res->h },
+                      { p5 + p7, p6,       (p1) / res->w, (p2) / res->h }
                     };
                     vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                   } else {
                     struct { float x, y; float s, t; } vertices[4] = {
-                      { p5, p6,            (p1 + fudge) / res->w, (p2 + fudge) / res->h },
-                      { p5, p6 + p8,       (p1 + fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                      { p5 + p7, p6 + p8,  (p1 + p3 - fudge) / res->w, (p2 + p4 - fudge) / res->h },
-                      { p5 + p7, p6,       (p1 + p3 - fudge) / res->w, (p2 + fudge) / res->h }
+                      { p5, p6,            (p1) / res->w, (p2) / res->h },
+                      { p5, p6 + p8,       (p1) / res->w, (p2 + p4) / res->h },
+                      { p5 + p7, p6 + p8,  (p1 + p3) / res->w, (p2 + p4) / res->h },
+                      { p5 + p7, p6,       (p1 + p3) / res->w, (p2) / res->h }
                     };
                     vertex_buffer_push_back(img_buffer, vertices, 4, indices, 6);
                   }
@@ -869,6 +874,14 @@ static void * handle_fifo_loop(void * vargp) {
           double angle_in_degrees = theta * 180 / M_PI;
           mat4_translate(&model[stack_index], -x, -y, 0);
           mat4_rotate(&model[stack_index], angle_in_degrees, 0, 0, 1);
+          mat4_translate(&model[stack_index], x, y, 0);
+        } else if(str_equals(transform, "scale")) {
+          double x = strtod(strsep(&line_sep, " "), NULL);
+          double y = strtod(strsep(&line_sep, " "), NULL);
+          double sh = strtod(strsep(&line_sep, " "), NULL);
+          double sv = strtod(strsep(&line_sep, " "), NULL);
+          mat4_translate(&model[stack_index], -x, -y, 0);
+          mat4_scale(&model[stack_index], sh, sv, 1);
           mat4_translate(&model[stack_index], x, y, 0);
         }
       } else if(str_equals(line, "pop")) {

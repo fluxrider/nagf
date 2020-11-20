@@ -1,5 +1,6 @@
 // Copyright 2020 David Lareau. This program is free software under the terms of the GPL-3.0-or-later.
 // xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.vert > text.vert.xxd && xxd -i < gfx-glfw_freetype-gl/v3f-t2f-c4f.frag > text.frag.xxd && xxd -i < gfx-glfw.img.vert > img.vert.xxd && xxd -i < gfx-glfw.img.frag > img.frag.xxd && gcc -o gfx-glfw gfx-glfw.c gfx-glfw_freetype-gl/*.c $(pkg-config --libs --cflags x11 opengl glfw3 glew freetype2 MagickWand) -lpthread -lm && rm *.xxd && ./gfx-glfw
+#define _GNU_SOURCE // for reallocarray on raspberry pi OS which has old libc
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -13,7 +14,8 @@
 #include <semaphore.h>
 #include <pthread.h>
 #include <string.h>
-#include <MagickWand/MagickWand.h>
+#include <wand/MagickWand.h> // raspberry OS version (due to old version?)
+//#include <MagickWand/MagickWand.h> // arch linux version
 #include <GL/glew.h>
 #include "gfx-glfw_freetype-gl/freetype-gl.h"
 #include "gfx-glfw_freetype-gl/mat4.h"
@@ -30,7 +32,7 @@ static void glfw_error_callback(int error, const char * description) {
 }
 
 char * load_file(const char * path) {
-  FILE * file = fopen(path, "rb"); if(!file) { perror("GFX/EVT error: fopen"); exit(EXIT_FAILURE); }
+  FILE * file = fopen(path, "rb"); if(!file) { perror("GFX/EVT error: fopen"); fprintf(stderr, "path %s\n", path); exit(EXIT_FAILURE); }
 
   fseek(file, 0L, SEEK_END);
   long size = ftell(file);

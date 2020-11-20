@@ -1,5 +1,5 @@
 // Copyright 2020 David Lareau. This source code form is subject to the terms of the Mozilla Public License 2.0.
-
+#define _GNU_SOURCE // for reallocarray on raspberry pi OS which has old libc
 #include <stdio.h>
 #include <string.h>
 #include "data-util.h"
